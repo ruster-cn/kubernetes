@@ -143,7 +143,7 @@ func (g *genericScheduler) Schedule(ctx context.Context, prof *profile.Profile, 
 		return result, err
 	}
 	trace.Step("Basic checks done")
-
+	//note:调度时获取所有node的快照数据
 	if err := g.snapshot(); err != nil {
 		return result, err
 	}
