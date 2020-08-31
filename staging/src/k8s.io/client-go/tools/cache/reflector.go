@@ -253,6 +253,7 @@ func (r *Reflector) ListAndWatch(stopCh <-chan struct{}) error {
 		var err error
 		listCh := make(chan struct{}, 1)
 		panicCh := make(chan interface{}, 1)
+		//note: list resource
 		go func() {
 			defer func() {
 				if r := recover(); r != nil {
@@ -367,6 +368,7 @@ func (r *Reflector) ListAndWatch(stopCh <-chan struct{}) error {
 			}
 			if r.ShouldResync == nil || r.ShouldResync() {
 				klog.V(4).Infof("%s: forcing resync", r.name)
+				//question: store resync 作用？
 				if err := r.store.Resync(); err != nil {
 					resyncerrc <- err
 					return
@@ -377,6 +379,7 @@ func (r *Reflector) ListAndWatch(stopCh <-chan struct{}) error {
 		}
 	}()
 
+	//note: watch resource
 	for {
 		// give the stopCh a chance to stop the loop, even in case of continue statements further down on errors
 		select {
@@ -411,7 +414,7 @@ func (r *Reflector) ListAndWatch(stopCh <-chan struct{}) error {
 			}
 			return err
 		}
-
+		//note: watchHandler 处理watch 时间，写入store(fifo)
 		if err := r.watchHandler(start, w, &resourceVersion, resyncerrc, stopCh); err != nil {
 			if err != errorStopRequested {
 				switch {

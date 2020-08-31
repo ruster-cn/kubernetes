@@ -367,7 +367,7 @@ func (s *sharedIndexInformer) SetWatchErrorHandler(handler WatchErrorHandler) er
 
 func (s *sharedIndexInformer) Run(stopCh <-chan struct{}) {
 	defer utilruntime.HandleCrash()
-
+	//note: reflector 与 controller 之间共享的 fifo 队列
 	fifo := NewDeltaFIFOWithOptions(DeltaFIFOOptions{
 		KnownObjects:          s.indexer,
 		EmitDeltaTypeReplaced: true,
@@ -388,7 +388,7 @@ func (s *sharedIndexInformer) Run(stopCh <-chan struct{}) {
 	func() {
 		s.startedLock.Lock()
 		defer s.startedLock.Unlock()
-
+		//note: 初始化controller
 		s.controller = New(cfg)
 		s.controller.(*controller).clock = s.clock
 		s.started = true
@@ -407,6 +407,7 @@ func (s *sharedIndexInformer) Run(stopCh <-chan struct{}) {
 		defer s.startedLock.Unlock()
 		s.stopped = true // Don't want any new listeners
 	}()
+	//note: 启动controller
 	s.controller.Run(stopCh)
 }
 

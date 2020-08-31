@@ -127,6 +127,7 @@ func (c *controller) Run(stopCh <-chan struct{}) {
 		<-stopCh
 		c.config.Queue.Close()
 	}()
+	//note: new reflector
 	r := NewReflector(
 		c.config.ListerWatcher,
 		c.config.ObjectType,
@@ -145,7 +146,7 @@ func (c *controller) Run(stopCh <-chan struct{}) {
 
 	var wg wait.Group
 	defer wg.Wait()
-
+	//note: start reflector
 	wg.StartWithChannel(stopCh, r.Run)
 
 	wait.Until(c.processLoop, time.Second, stopCh)
@@ -176,6 +177,7 @@ func (c *controller) LastSyncResourceVersion() string {
 // also be helpful.
 func (c *controller) processLoop() {
 	for {
+		//todo: controller 消费fifo对象，process处理消费对象
 		obj, err := c.config.Queue.Pop(PopProcessFunc(c.config.Process))
 		if err != nil {
 			if err == ErrFIFOClosed {
