@@ -177,7 +177,7 @@ func (c *controller) LastSyncResourceVersion() string {
 // also be helpful.
 func (c *controller) processLoop() {
 	for {
-		//todo: controller 消费fifo对象，process处理消费对象
+		//todo-note: controller 消费fifo对象，process处理消费对象
 		obj, err := c.config.Queue.Pop(PopProcessFunc(c.config.Process))
 		if err != nil {
 			if err == ErrFIFOClosed {
