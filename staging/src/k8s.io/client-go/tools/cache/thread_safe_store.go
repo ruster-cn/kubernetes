@@ -263,7 +263,7 @@ func (c *threadSafeMap) updateIndices(oldObj interface{}, newObj interface{}, ke
 		if err != nil {
 			panic(fmt.Errorf("unable to calculate an index entry for key %q on index %q: %v", key, name, err))
 		}
-		index := c.indices[name]
+		index := c.indices[name] //index:map[string]set.String
 		if index == nil {
 			index = Index{}
 			c.indices[name] = index
