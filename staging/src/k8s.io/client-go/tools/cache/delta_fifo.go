@@ -605,6 +605,8 @@ func (f *DeltaFIFO) Replace(list []interface{}, resourceVersion string) error {
 // Resync adds, with a Sync type of Delta, every object listed by
 // `f.knownObjects` whose key is not already queued for processing.
 // If `f.knownObjects` is `nil` then Resync does nothing.
+
+//NOTE: Resync的思想是从index(索引)取出来当前对象的值,append到Deltas 数组中，并去重(去重的目的：如果index的obj和Deltas最后一个相同，说明obj没有变动，减少元素处理次数)。然后通知controller消费处理Deltas
 func (f *DeltaFIFO) Resync() error {
 	f.lock.Lock()
 	defer f.lock.Unlock()

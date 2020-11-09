@@ -202,6 +202,7 @@ func New(client clientset.Interface,
 
 	schedulerCache := internalcache.New(30*time.Second, stopEverything)
 
+	//注册调度算法
 	registry := frameworkplugins.NewInTreeRegistry()
 	if err := registry.Merge(options.frameworkOutOfTreeRegistry); err != nil {
 		return nil, err
@@ -230,6 +231,7 @@ func New(client clientset.Interface,
 
 	var sched *Scheduler
 	source := options.schedulerAlgorithmSource
+	//注册调度算法
 	switch {
 	case source.Provider != nil:
 		// Create the config from a named algorithm provider.

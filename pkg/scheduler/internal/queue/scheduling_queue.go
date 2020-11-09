@@ -642,7 +642,7 @@ func (p *PriorityQueue) getBackoffTime(podInfo *framework.QueuedPodInfo) time.Ti
 }
 
 // calculateBackoffDuration is a helper function for calculating the backoffDuration
-// based on the number of attempts the pod has made.
+// based on the number of attempts the pod has made.pod最长调度失败重试时间10s
 func (p *PriorityQueue) calculateBackoffDuration(podInfo *framework.QueuedPodInfo) time.Duration {
 	duration := p.podInitialBackoffDuration
 	for i := 1; i < podInfo.Attempts; i++ {

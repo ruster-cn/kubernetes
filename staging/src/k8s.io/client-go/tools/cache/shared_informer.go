@@ -530,11 +530,12 @@ func (s *sharedIndexInformer) HandleDeltas(obj interface{}) error {
 	defer s.blockDeltas.Unlock()
 
 	// from oldest to newest
-	for _, d := range obj.(Deltas) {
+	for _, d := range obj.(Deltas) { //这里是从detalfifo队列取出来的(resync的时候，从index更新到fifo里的)
 		switch d.Type {
 		case Sync, Replaced, Added, Updated:
 			s.cacheMutationDetector.AddObject(d.Object)
 			if old, exists, err := s.indexer.Get(d.Object); err == nil && exists {
+				//这里从index里取出来
 				if err := s.indexer.Update(d.Object); err != nil {
 					return err
 				}
@@ -553,7 +554,7 @@ func (s *sharedIndexInformer) HandleDeltas(obj interface{}) error {
 						}
 					}
 				}
-				s.processor.distribute(updateNotification{oldObj: old, newObj: d.Object}, isSync)
+				s.processor.distribute(updateNotification{oldObj: old, newObj: d.Object}, isSync) //so,update 的时候 old 和new 不就是同样的元素了吗???
 			} else {
 				if err := s.indexer.Add(d.Object); err != nil {
 					return err
@@ -741,7 +742,7 @@ func (p *processorListener) pop() {
 	var notification interface{}
 	for {
 		select {
-		case nextCh <- notification:
+		case nextCh <- notification: //when write success,go into
 			// Notification dispatched
 			var ok bool
 			notification, ok = p.pendingNotifications.ReadOne()
