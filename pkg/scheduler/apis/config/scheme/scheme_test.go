@@ -30,6 +30,8 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
+// TestCodecsDecodePluginConfig tests that embedded plugin args get decoded
+// into their appropriate internal types and defaults are applied.
 func TestCodecsDecodePluginConfig(t *testing.T) {
 	testCases := []struct {
 		name         string
@@ -44,6 +46,10 @@ apiVersion: kubescheduler.config.k8s.io/v1beta1
 kind: KubeSchedulerConfiguration
 profiles:
 - pluginConfig:
+  - name: DefaultPreemption
+    args:
+      minCandidateNodesPercentage: 50
+      minCandidateNodesAbsolute: 500
   - name: InterPodAffinity
     args:
       hardPodAffinityWeight: 5
@@ -87,6 +93,10 @@ profiles:
 					SchedulerName: "default-scheduler",
 					PluginConfig: []config.PluginConfig{
 						{
+							Name: "DefaultPreemption",
+							Args: &config.DefaultPreemptionArgs{MinCandidateNodesPercentage: 50, MinCandidateNodesAbsolute: 500},
+						},
+						{
 							Name: "InterPodAffinity",
 							Args: &config.InterPodAffinityArgs{HardPodAffinityWeight: 5},
 						},
@@ -111,6 +121,7 @@ profiles:
 								DefaultConstraints: []corev1.TopologySpreadConstraint{
 									{MaxSkew: 1, TopologyKey: "zone", WhenUnsatisfiable: corev1.ScheduleAnyway},
 								},
+								DefaultingType: config.ListDefaulting,
 							},
 						},
 						{
@@ -246,6 +257,8 @@ apiVersion: kubescheduler.config.k8s.io/v1beta1
 kind: KubeSchedulerConfiguration
 profiles:
 - pluginConfig:
+  - name: DefaultPreemption
+    args:
   - name: InterPodAffinity
     args:
   - name: NodeResourcesFit
@@ -257,11 +270,16 @@ profiles:
     args:
   - name: VolumeBinding
     args:
+  - name: PodTopologySpread
 `),
 			wantProfiles: []config.KubeSchedulerProfile{
 				{
 					SchedulerName: "default-scheduler",
 					PluginConfig: []config.PluginConfig{
+						{
+							Name: "DefaultPreemption",
+							Args: &config.DefaultPreemptionArgs{MinCandidateNodesPercentage: 10, MinCandidateNodesAbsolute: 100},
+						},
 						{
 							Name: "InterPodAffinity",
 							Args: &config.InterPodAffinityArgs{
@@ -289,6 +307,12 @@ profiles:
 							Name: "VolumeBinding",
 							Args: &config.VolumeBindingArgs{
 								BindTimeoutSeconds: 600,
+							},
+						},
+						{
+							Name: "PodTopologySpread",
+							Args: &config.PodTopologySpreadArgs{
+								DefaultingType: config.SystemDefaulting,
 							},
 						},
 					},
@@ -374,6 +398,14 @@ func TestCodecsEncodePluginConfig(t *testing.T) {
 								},
 							},
 							{
+								Name: "PodTopologySpread",
+								Args: runtime.RawExtension{
+									Object: &v1beta1.PodTopologySpreadArgs{
+										DefaultConstraints: []corev1.TopologySpreadConstraint{},
+									},
+								},
+							},
+							{
 								Name: "OutOfTreePlugin",
 								Args: runtime.RawExtension{
 									Raw: []byte(`{"foo":"bar"}`),
@@ -429,6 +461,10 @@ profiles:
         weight: 2
     name: NodeResourcesLeastAllocated
   - args:
+      apiVersion: kubescheduler.config.k8s.io/v1beta1
+      kind: PodTopologySpreadArgs
+    name: PodTopologySpread
+  - args:
       foo: bar
     name: OutOfTreePlugin
 `,
@@ -437,6 +473,7 @@ profiles:
 			name:    "v1beta1 in-tree and out-of-tree plugins from internal",
 			version: v1beta1.SchemeGroupVersion,
 			obj: &config.KubeSchedulerConfiguration{
+				Parallelism: 8,
 				Profiles: []config.KubeSchedulerProfile{
 					{
 						PluginConfig: []config.PluginConfig{
@@ -457,6 +494,10 @@ profiles:
 								Args: &config.VolumeBindingArgs{
 									BindTimeoutSeconds: 300,
 								},
+							},
+							{
+								Name: "PodTopologySpread",
+								Args: &config.PodTopologySpreadArgs{},
 							},
 							{
 								Name: "OutOfTreePlugin",
@@ -488,6 +529,7 @@ leaderElection:
   resourceNamespace: ""
   retryPeriod: 0s
 metricsBindAddress: ""
+parallelism: 8
 percentageOfNodesToScore: 0
 podInitialBackoffSeconds: 0
 podMaxBackoffSeconds: 0
@@ -510,6 +552,10 @@ profiles:
       bindTimeoutSeconds: 300
       kind: VolumeBindingArgs
     name: VolumeBinding
+  - args:
+      apiVersion: kubescheduler.config.k8s.io/v1beta1
+      kind: PodTopologySpreadArgs
+    name: PodTopologySpread
   - args:
       foo: bar
     name: OutOfTreePlugin

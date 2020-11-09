@@ -669,6 +669,14 @@ func (r *crdHandler) getOrCreateServingInfoFor(uid types.UID, name string) (*crd
 		openAPIModels = nil
 	}
 
+	var typeConverter fieldmanager.TypeConverter = fieldmanager.DeducedTypeConverter{}
+	if openAPIModels != nil {
+		typeConverter, err = fieldmanager.NewTypeConverter(openAPIModels, crd.Spec.PreserveUnknownFields)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	safeConverter, unsafeConverter, err := r.converterFactory.NewConverter(crd)
 	if err != nil {
 		return nil, err
@@ -842,13 +850,13 @@ func (r *crdHandler) getOrCreateServingInfoFor(uid types.UID, name string) (*crd
 		if utilfeature.DefaultFeatureGate.Enabled(features.ServerSideApply) {
 			reqScope := *requestScopes[v.Name]
 			reqScope.FieldManager, err = fieldmanager.NewDefaultCRDFieldManager(
-				openAPIModels,
+				typeConverter,
 				reqScope.Convertor,
 				reqScope.Defaulter,
 				reqScope.Creater,
 				reqScope.Kind,
 				reqScope.HubGroupVersion,
-				crd.Spec.PreserveUnknownFields,
+				false,
 			)
 			if err != nil {
 				return nil, err
@@ -876,6 +884,20 @@ func (r *crdHandler) getOrCreateServingInfoFor(uid types.UID, name string) (*crd
 		// override status subresource values
 		// shallow copy
 		statusScope := *requestScopes[v.Name]
+		if utilfeature.DefaultFeatureGate.Enabled(features.ServerSideApply) {
+			statusScope.FieldManager, err = fieldmanager.NewDefaultCRDFieldManager(
+				typeConverter,
+				statusScope.Convertor,
+				statusScope.Defaulter,
+				statusScope.Creater,
+				statusScope.Kind,
+				statusScope.HubGroupVersion,
+				true,
+			)
+			if err != nil {
+				return nil, err
+			}
+		}
 		statusScope.Subresource = "status"
 		statusScope.Namer = handlers.ContextBasedNaming{
 			SelfLinker:         meta.NewAccessor(),
@@ -1200,7 +1222,8 @@ func (v schemaCoercingConverter) ConvertFieldLabel(gvk schema.GroupVersionKind, 
 // in addition for native types when decoding into Golang structs:
 //
 // - validating and pruning ObjectMeta
-// - generic pruning of unknown fields following a structural schema.
+// - generic pruning of unknown fields following a structural schema
+// - removal of non-defaulted non-nullable null map values.
 type unstructuredSchemaCoercer struct {
 	dropInvalidMetadata bool
 	repairGeneration    bool
@@ -1234,6 +1257,7 @@ func (v *unstructuredSchemaCoercer) apply(u *unstructured.Unstructured) error {
 		if !v.preserveUnknownFields {
 			// TODO: switch over pruning and coercing at the root to  schemaobjectmeta.Coerce too
 			structuralpruning.Prune(u.Object, v.structuralSchemas[gv.Version], false)
+			structuraldefaulting.PruneNonNullableNullsWithoutDefaults(u.Object, v.structuralSchemas[gv.Version])
 		}
 		if err := schemaobjectmeta.Coerce(nil, u.Object, v.structuralSchemas[gv.Version], false, v.dropInvalidMetadata); err != nil {
 			return err
