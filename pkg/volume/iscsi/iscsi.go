@@ -79,7 +79,7 @@ func (plugin *iscsiPlugin) CanSupport(spec *volume.Spec) bool {
 	return (spec.Volume != nil && spec.Volume.ISCSI != nil) || (spec.PersistentVolume != nil && spec.PersistentVolume.Spec.ISCSI != nil)
 }
 
-func (plugin *iscsiPlugin) RequiresRemount() bool {
+func (plugin *iscsiPlugin) RequiresRemount(spec *volume.Spec) bool {
 	return false
 }
 
@@ -345,7 +345,7 @@ func (b *iscsiDiskMounter) SetUp(mounterArgs volume.MounterArgs) error {
 
 func (b *iscsiDiskMounter) SetUpAt(dir string, mounterArgs volume.MounterArgs) error {
 	// diskSetUp checks mountpoints and prevent repeated calls
-	err := diskSetUp(b.manager, *b, dir, b.mounter, mounterArgs.FsGroup, mounterArgs.FSGroupChangePolicy, b.plugin)
+	err := diskSetUp(b.manager, *b, dir, b.mounter, mounterArgs.FsGroup, mounterArgs.FSGroupChangePolicy)
 	if err != nil {
 		klog.Errorf("iscsi: failed to setup")
 	}

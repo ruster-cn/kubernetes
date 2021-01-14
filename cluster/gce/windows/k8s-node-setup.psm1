@@ -57,8 +57,8 @@ $GCE_METADATA_SERVER = "169.254.169.254"
 # exist until an initial HNS network has been created on the Windows node - see
 # Add_InitialHnsNetwork().
 $MGMT_ADAPTER_NAME = "vEthernet (Ethernet*"
-$CRICTL_VERSION = 'v1.19.0'
-$CRICTL_SHA256 = 'df60ff65ab71c5cf1d8c38f51db6f05e3d60a45d3a3293c3248c925c25375921'
+$CRICTL_VERSION = 'v1.20.0'
+$CRICTL_SHA256 = 'cc909108ee84d39b2e9d7ac0cb9599b6fa7fc51f5a7da7014052684cd3e3f65e'
 
 Import-Module -Force C:\common.psm1
 
@@ -273,6 +273,7 @@ function Set-EnvironmentVars {
     "LOGS_DIR" = ${kube_env}['LOGS_DIR']
     "MANIFESTS_DIR" = ${kube_env}['MANIFESTS_DIR']
     "INFRA_CONTAINER" = ${kube_env}['WINDOWS_INFRA_CONTAINER']
+    "WINDOWS_ENABLE_PIGZ" = ${kube_env}['WINDOWS_ENABLE_PIGZ']
 
     "Path" = ${env:Path} + ";" + ${kube_env}['NODE_DIR']
     "KUBE_NETWORK" = "l2bridge".ToLower()
@@ -1180,7 +1181,7 @@ function Start-WorkerServices {
       "--cluster-cidr=$(${kube_env}['CLUSTER_IP_RANGE'])",
       "--hostname-override=${instance_name}"
   )
-  
+
   $kubeproxy_args = ${default_kubeproxy_args} + ${kubeproxy_args}
   Log-Output "Final kubeproxy_args: ${kubeproxy_args}"
 
@@ -1309,6 +1310,7 @@ function Pull-InfraContainer {
 # Setup the container runtime on the node. It supports both
 # Docker and containerd.
 function Setup-ContainerRuntime {
+  Install-Pigz
   if (${env:CONTAINER_RUNTIME} -eq "containerd") {
     Install_Containerd
     Configure_Containerd
@@ -1529,6 +1531,40 @@ function Start_Containerd {
   Log-Output "Starting containerd service"
   Start-Service containerd
 }
+
+# Pigz Resources
+$PIGZ_ROOT = 'C:\pigz'
+$PIGZ_VERSION = '2.3.1'
+$PIGZ_TAR_URL = 'https://storage.googleapis.com/gke-release/winnode/pigz/prod/gke_windows/pigz/release/5/20201104-134221/pigz-$PIGZ_VERSION.zip'
+$PIGZ_TAR_HASH = '5a6f8f5530acc85ea51797f58c1409e5af6b69e55da243ffc608784cf14fec0cd16f74cc61c564d69e1a267750aecfc1e4c53b5219ff5f893b42a7576306f34c'
+
+# Install Pigz (https://github.com/madler/pigz) into Windows for improved image
+# extraction performance.
+function Install-Pigz {
+  if ("${env:WINDOWS_ENABLE_PIGZ}" -eq "true") {
+    if (-not (Test-Path $PIGZ_ROOT)) {
+      Log-Output "Installing Pigz $PIGZ_VERSION"
+      New-Item -Path $PIGZ_ROOT -ItemType Directory
+      MustDownload-File `
+        -Url $PIGZ_TAR_URL `
+        -OutFile "$PIGZ_ROOT\pigz-$PIGZ_VERSION.zip" `
+        -Hash $PIGZ_TAR_HASH `
+        -Algorithm SHA512
+      Expand-Archive -Path "$PIGZ_ROOT\pigz-$PIGZ_VERSION.zip" `
+        -DestinationPath $PIGZ_ROOT
+      Remove-Item -Path "$PIGZ_ROOT\pigz-$PIGZ_VERSION.zip"
+      # Docker and Containerd search for unpigz.exe on the first container image
+      # pull request after the service is started. If unpigz.exe is in the
+      # Windows path it'll use it instead of the default unzipper.
+      # See: https://github.com/containerd/containerd/issues/1896
+      Add-MachineEnvironmentPath -Path $PIGZ_ROOT
+      Log-Output "Installed Pigz $PIGZ_VERSION"
+    } else {
+      Log-Output "Pigz already installed."
+    }
+  }
+}
+
 # TODO(pjh): move the logging agent code below into a separate
 # module; it was put here temporarily to avoid disrupting the file layout in
 # the K8s release machinery.
@@ -1626,7 +1662,7 @@ function Install-LoggingAgent {
     Log-Output ("Skip: Fluentbit logging agent is already installed")
     return
   }
-  
+
   DownloadAndInstall-LoggingAgents
   Create-LoggingAgentServices
 }
@@ -1699,7 +1735,7 @@ $FLUENTBIT_CONFIG = @'
     Log_File      /var/log/fluentbit.log
     Daemon        off
     Parsers_File  parsers.conf
-    HTTP_Server   off 
+    HTTP_Server   off
     HTTP_Listen   0.0.0.0
     HTTP_PORT     2020
     plugins_file plugins.conf
@@ -1753,7 +1789,7 @@ $FLUENTBIT_CONFIG = @'
     # Channels Setup,Windows PowerShell
     Channels     application,system,security
     Tag          winevent.raw
-    DB           winlog.sqlite   # 
+    DB           winlog.sqlite   #
 
 
 # Json Log Example:
@@ -1767,9 +1803,9 @@ $FLUENTBIT_CONFIG = @'
     Mem_Buf_Limit    5MB
     Skip_Long_Lines  On
     Refresh_Interval 5
-    DB               flb_kube.db  
+    DB               flb_kube.db
 
-    # Settings from fluentd missing here.  
+    # Settings from fluentd missing here.
     # tag reform.*
     # format json
     # time_key time
@@ -2037,6 +2073,11 @@ function Configure-StackdriverAgent {
   $config = $FLUENTD_CONFIG.replace('NODE_NAME', (hostname))
   $config | Out-File -FilePath $fluentd_config_file -Encoding ASCII
   Log-Output "Wrote fluentd logging config to $fluentd_config_file"
+
+  # Configure StackdriverLogging to automatically restart on failure after 10
+  # seconds. The logging agent may die die to various disruptions but can be
+  # resumed.
+  sc.exe failure StackdriverLogging reset= 0 actions= restart/1000/restart/10000
 }
 
 # The NODE_NAME placeholder must be replaced with the node's name (hostname).
@@ -2099,6 +2140,7 @@ $FLUENTD_CONFIG = @'
       format json
       time_key time
       time_format %Y-%m-%dT%H:%M:%S.%NZ
+      keep_time_key
     </pattern>
     <pattern>
       format /^(?<time>.+) (?<stream>stdout|stderr) [^ ]* (?<log>.*)$/

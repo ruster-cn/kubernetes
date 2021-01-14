@@ -30,6 +30,7 @@ pkg/apis/events/v1
 pkg/apis/events/v1beta1
 pkg/apis/extensions/v1beta1
 pkg/apis/flowcontrol/v1alpha1
+pkg/apis/flowcontrol/v1beta1
 pkg/apis/networking/v1
 pkg/apis/networking/v1beta1
 pkg/apis/node/v1alpha1
@@ -50,6 +51,7 @@ pkg/controller/certificates
 pkg/controller/certificates/signer
 pkg/controller/certificates/signer/config/v1alpha1
 pkg/controller/clusterroleaggregation
+pkg/controller/cronjob/config/v1alpha1
 pkg/controller/daemon
 pkg/controller/daemon/config/v1alpha1
 pkg/controller/deployment
@@ -104,7 +106,6 @@ pkg/kubelet/pluginmanager/pluginwatcher
 pkg/kubelet/pod/testing
 pkg/kubelet/preemption
 pkg/kubelet/sysctl
-pkg/kubelet/types
 pkg/kubemark
 pkg/proxy/apis/config
 pkg/proxy/apis/config/v1alpha1
@@ -189,10 +190,6 @@ plugin/pkg/admission/eventratelimit/apis/eventratelimit/v1alpha1
 plugin/pkg/admission/limitranger
 plugin/pkg/auth/authorizer/node
 plugin/pkg/auth/authorizer/rbac
-staging/src/k8s.io/api/admission/v1
-staging/src/k8s.io/api/admission/v1beta1
-staging/src/k8s.io/api/admissionregistration/v1
-staging/src/k8s.io/api/admissionregistration/v1beta1
 staging/src/k8s.io/api/apiserverinternal/v1alpha1
 staging/src/k8s.io/api/apps/v1
 staging/src/k8s.io/api/apps/v1beta1
@@ -252,8 +249,6 @@ staging/src/k8s.io/apimachinery/pkg/conversion
 staging/src/k8s.io/apimachinery/pkg/runtime
 staging/src/k8s.io/apimachinery/pkg/runtime/schema
 staging/src/k8s.io/apimachinery/pkg/runtime/serializer
-staging/src/k8s.io/apimachinery/pkg/runtime/serializer/json
-staging/src/k8s.io/apimachinery/pkg/runtime/serializer/protobuf
 staging/src/k8s.io/apimachinery/pkg/runtime/serializer/recognizer
 staging/src/k8s.io/apimachinery/pkg/runtime/serializer/streaming
 staging/src/k8s.io/apimachinery/pkg/runtime/testing
@@ -383,7 +378,6 @@ staging/src/k8s.io/client-go/tools/leaderelection
 staging/src/k8s.io/client-go/tools/leaderelection/resourcelock
 staging/src/k8s.io/client-go/tools/record
 staging/src/k8s.io/client-go/tools/reference
-staging/src/k8s.io/client-go/transport
 staging/src/k8s.io/client-go/util/exec
 staging/src/k8s.io/client-go/util/flowcontrol
 staging/src/k8s.io/client-go/util/jsonpath
@@ -395,7 +389,7 @@ staging/src/k8s.io/cloud-provider/config/v1alpha1
 staging/src/k8s.io/cloud-provider/controllers/node
 staging/src/k8s.io/cloud-provider/controllers/nodelifecycle
 staging/src/k8s.io/cloud-provider/controllers/route
-staging/src/k8s.io/cloud-provider/service/config/v1alpha1
+staging/src/k8s.io/cloud-provider/controllers/service/config/v1alpha1
 staging/src/k8s.io/code-generator/cmd/client-gen/args
 staging/src/k8s.io/code-generator/cmd/client-gen/generators/fake
 staging/src/k8s.io/code-generator/cmd/client-gen/generators/scheme
@@ -419,7 +413,6 @@ staging/src/k8s.io/kubectl/pkg/cmd/annotate
 staging/src/k8s.io/kubectl/pkg/cmd/apply
 staging/src/k8s.io/kubectl/pkg/cmd/attach
 staging/src/k8s.io/kubectl/pkg/cmd/autoscale
-staging/src/k8s.io/kubectl/pkg/cmd/certificates
 staging/src/k8s.io/kubectl/pkg/cmd/clusterinfo
 staging/src/k8s.io/kubectl/pkg/cmd/create
 staging/src/k8s.io/kubectl/pkg/cmd/debug
@@ -455,6 +448,8 @@ staging/src/k8s.io/kubectl/pkg/polymorphichelpers
 staging/src/k8s.io/kubectl/pkg/scale
 staging/src/k8s.io/kubectl/pkg/util/templates
 staging/src/k8s.io/kubelet/config/v1beta1
+staging/src/k8s.io/kubelet/pkg/apis/credentialprovider
+staging/src/k8s.io/kubelet/pkg/apis/credentialprovider/v1alpha1
 staging/src/k8s.io/legacy-cloud-providers/vsphere
 staging/src/k8s.io/metrics/pkg/apis/custom_metrics
 staging/src/k8s.io/metrics/pkg/apis/custom_metrics/v1beta1

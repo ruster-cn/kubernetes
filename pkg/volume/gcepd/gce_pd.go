@@ -98,7 +98,7 @@ func (plugin *gcePersistentDiskPlugin) CanSupport(spec *volume.Spec) bool {
 		(spec.Volume != nil && spec.Volume.GCEPersistentDisk != nil)
 }
 
-func (plugin *gcePersistentDiskPlugin) RequiresRemount() bool {
+func (plugin *gcePersistentDiskPlugin) RequiresRemount(spec *volume.Spec) bool {
 	return false
 }
 
@@ -428,8 +428,11 @@ func (b *gcePersistentDiskMounter) SetUpAt(dir string, mounterArgs volume.Mounte
 		return fmt.Errorf("mount of disk %s failed: %v", dir, err)
 	}
 
+	klog.V(4).Infof("mount of disk %s succeeded", dir)
 	if !b.readOnly {
-		volume.SetVolumeOwnership(b, mounterArgs.FsGroup, mounterArgs.FSGroupChangePolicy, util.FSGroupCompleteHook(b.plugin, nil))
+		if err := volume.SetVolumeOwnership(b, mounterArgs.FsGroup, mounterArgs.FSGroupChangePolicy, util.FSGroupCompleteHook(b.plugin, nil)); err != nil {
+			klog.Errorf("SetVolumeOwnership returns error %v", err)
+		}
 	}
 	return nil
 }

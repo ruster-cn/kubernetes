@@ -105,9 +105,13 @@ func (info *BaseServiceInfo) ExternalIPStrings() []string {
 	return info.externalIPs
 }
 
-// LoadBalancerIngress is part of ServicePort interface.
-func (info *BaseServiceInfo) LoadBalancerIngress() []v1.LoadBalancerIngress {
-	return info.loadBalancerStatus.Ingress
+// LoadBalancerIPStrings is part of ServicePort interface.
+func (info *BaseServiceInfo) LoadBalancerIPStrings() []string {
+	var ips []string
+	for _, ing := range info.loadBalancerStatus.Ingress {
+		ips = append(ips, ing.IP)
+	}
+	return ips
 }
 
 // OnlyNodeLocalEndpoints is part of ServicePort interface.
@@ -152,27 +156,38 @@ func (sct *ServiceChangeTracker) newBaseServiceInfo(port *v1.ServicePort, servic
 	// services, this is actually expected. Hence we downgraded from reporting by events
 	// to just log lines with high verbosity
 
-	var incorrectIPs []string
-	info.externalIPs, incorrectIPs = utilproxy.FilterIncorrectIPVersion(service.Spec.ExternalIPs, sct.ipFamily)
-	if len(incorrectIPs) > 0 {
-		klog.V(4).Infof("service change tracker(%v) ignored the following external IPs(%s) for service %v/%v as they don't match IPFamily", sct.ipFamily, strings.Join(incorrectIPs, ","), service.Namespace, service.Name)
+	ipFamilyMap := utilproxy.MapIPsByIPFamily(service.Spec.ExternalIPs)
+	info.externalIPs = ipFamilyMap[sct.ipFamily]
+
+	// Log the IPs not matching the ipFamily
+	if ips, ok := ipFamilyMap[utilproxy.OtherIPFamily(sct.ipFamily)]; ok && len(ips) > 0 {
+		klog.V(4).Infof("service change tracker(%v) ignored the following external IPs(%s) for service %v/%v as they don't match IPFamily", sct.ipFamily, strings.Join(ips, ","), service.Namespace, service.Name)
 	}
 
-	info.loadBalancerSourceRanges, incorrectIPs = utilproxy.FilterIncorrectCIDRVersion(loadBalancerSourceRanges, sct.ipFamily)
-	if len(incorrectIPs) > 0 {
-		klog.V(4).Infof("service change tracker(%v) ignored the following load balancer source ranges(%s) for service %v/%v as they don't match IPFamily", sct.ipFamily, strings.Join(incorrectIPs, ","), service.Namespace, service.Name)
+	ipFamilyMap = utilproxy.MapCIDRsByIPFamily(loadBalancerSourceRanges)
+	info.loadBalancerSourceRanges = ipFamilyMap[sct.ipFamily]
+	// Log the CIDRs not matching the ipFamily
+	if cidrs, ok := ipFamilyMap[utilproxy.OtherIPFamily(sct.ipFamily)]; ok && len(cidrs) > 0 {
+		klog.V(4).Infof("service change tracker(%v) ignored the following load balancer source ranges(%s) for service %v/%v as they don't match IPFamily", sct.ipFamily, strings.Join(cidrs, ","), service.Namespace, service.Name)
 	}
 
-	correctIngresses, incorrectIngresses := utilproxy.FilterIncorrectLoadBalancerIngress(service.Status.LoadBalancer.Ingress, sct.ipFamily)
+	// Obtain Load Balancer Ingress IPs
+	var ips []string
+	for _, ing := range service.Status.LoadBalancer.Ingress {
+		ips = append(ips, ing.IP)
+	}
 
-	info.loadBalancerStatus.Ingress = correctIngresses
+	if len(ips) > 0 {
+		ipFamilyMap = utilproxy.MapIPsByIPFamily(ips)
 
-	if len(incorrectIngresses) > 0 {
-		var incorrectIPs []string
-		for _, incorrectIng := range incorrectIngresses {
-			incorrectIPs = append(incorrectIPs, incorrectIng.IP)
+		if ipList, ok := ipFamilyMap[utilproxy.OtherIPFamily(sct.ipFamily)]; ok && len(ipList) > 0 {
+			klog.V(4).Infof("service change tracker(%v) ignored the following load balancer(%s) ingress ips for service %v/%v as they don't match IPFamily", sct.ipFamily, strings.Join(ipList, ","), service.Namespace, service.Name)
+
 		}
-		klog.V(4).Infof("service change tracker(%v) ignored the following load balancer(%s) ingress ips for service %v/%v as they don't match IPFamily", sct.ipFamily, strings.Join(incorrectIPs, ","), service.Namespace, service.Name)
+		// Create the LoadBalancerStatus with the filtered IPs
+		for _, ip := range ipFamilyMap[sct.ipFamily] {
+			info.loadBalancerStatus.Ingress = append(info.loadBalancerStatus.Ingress, v1.LoadBalancerIngress{IP: ip})
+		}
 	}
 
 	if apiservice.NeedsHealthCheck(service) {
@@ -277,15 +292,15 @@ type UpdateServiceMapResult struct {
 	UDPStaleClusterIP sets.String
 }
 
-// UpdateServiceMap updates ServiceMap based on the given changes.
-func UpdateServiceMap(serviceMap ServiceMap, changes *ServiceChangeTracker) (result UpdateServiceMapResult) {
+// Update updates ServiceMap base on the given changes.
+func (sm ServiceMap) Update(changes *ServiceChangeTracker) (result UpdateServiceMapResult) {
 	result.UDPStaleClusterIP = sets.NewString()
-	serviceMap.apply(changes, result.UDPStaleClusterIP)
+	sm.apply(changes, result.UDPStaleClusterIP)
 
 	// TODO: If this will appear to be computationally expensive, consider
 	// computing this incrementally similarly to serviceMap.
 	result.HCServiceNodePorts = make(map[types.NamespacedName]uint16)
-	for svcPortName, info := range serviceMap {
+	for svcPortName, info := range sm {
 		if info.HealthCheckNodePort() != 0 {
 			result.HCServiceNodePorts[svcPortName.NamespacedName] = uint16(info.HealthCheckNodePort())
 		}

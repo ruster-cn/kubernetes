@@ -385,10 +385,16 @@ if [ "${ENABLE_IP_ALIASES}" = true ]; then
   PROVIDER_VARS="${PROVIDER_VARS:-} ENABLE_IP_ALIASES"
   PROVIDER_VARS="${PROVIDER_VARS:-} NODE_IPAM_MODE"
   PROVIDER_VARS="${PROVIDER_VARS:-} SECONDARY_RANGE_NAME"
-elif [[ -n "${MAX_PODS_PER_NODE:-}" ]]; then
-  # Should not have MAX_PODS_PER_NODE set for route-based clusters.
-  echo -e "${color_red:-}Cannot set MAX_PODS_PER_NODE for route-based projects for ${PROJECT}." >&2
-  exit 1
+else
+  if [[ -n "${MAX_PODS_PER_NODE:-}" ]]; then
+    # Should not have MAX_PODS_PER_NODE set for route-based clusters.
+    echo -e "${color_red:-}Cannot set MAX_PODS_PER_NODE for route-based projects for ${PROJECT}." >&2
+    exit 1
+  fi
+  if [[ "$(get-num-nodes)" -gt 100 ]]; then
+    echo -e "${color_red:-}Cannot create cluster with more than 100 nodes for route-based projects for ${PROJECT}." >&2
+    exit 1
+  fi
 fi
 
 # Enable GCE Alpha features.
@@ -581,13 +587,15 @@ export ENABLE_CSI_PROXY="${ENABLE_CSI_PROXY:-true}"
 # kube-apiserver is healthchecked on host IP instead of 127.0.0.1.
 export KUBE_APISERVER_HEALTHCHECK_ON_HOST_IP="${KUBE_APISERVER_HEALTHCHECK_ON_HOST_IP:-false}"
 
-# ETCD_LISTEN_ON_HOST_IP decides whether etcd servers should also listen on host IP, 
-# in addition to listening to 127.0.0.1, and whether kube-apiserver should connect to etcd servers
-# through host IP.
-export ETCD_LISTEN_ON_HOST_IP="${ETCD_LISTEN_ON_HOST_IP:-false}"
-
 # ETCD_PROGRESS_NOTIFY_INTERVAL defines the interval for etcd watch progress notify events.
 export ETCD_PROGRESS_NOTIFY_INTERVAL="${ETCD_PROGRESS_NOTIFY_INTERVAL:-10m}"
 
-# Use host IP instead of localhost in control plane kubeconfig files.
-export KUBECONFIG_USE_HOST_IP="${KUBECONFIG_USE_HOST_IP:-false}"
+# Optional: Install Pigz on Windows.
+# Pigz is a multi-core optimized version of unzip.exe.
+# It improves container image pull performance since most time is spent
+# unzipping the image layers to disk.
+export WINDOWS_ENABLE_PIGZ="${WINDOWS_ENABLE_PIGZ:-true}"
+
+# TLS_CIPHER_SUITES defines cipher suites allowed to be used by kube-apiserver. 
+# If this variable is unset or empty, kube-apiserver will allow its default set of cipher suites.
+export TLS_CIPHER_SUITES=""

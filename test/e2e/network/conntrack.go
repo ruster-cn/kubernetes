@@ -17,7 +17,6 @@ limitations under the License.
 package network
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -103,23 +102,29 @@ var _ = SIGDescribe("Conntrack", func() {
 				len(nodes.Items))
 		}
 
-		ips := e2enode.CollectAddresses(nodes, v1.NodeInternalIP)
+		var family v1.IPFamily
+		if framework.TestContext.ClusterIsIPv6() {
+			family = v1.IPv6Protocol
+		} else {
+			family = v1.IPv4Protocol
+		}
+
+		ips := e2enode.GetAddressesByTypeAndFamily(&nodes.Items[0], v1.NodeInternalIP, family)
 
 		clientNodeInfo = nodeInfo{
 			name:   nodes.Items[0].Name,
 			nodeIP: ips[0],
 		}
 
+		ips = e2enode.GetAddressesByTypeAndFamily(&nodes.Items[1], v1.NodeInternalIP, family)
+
 		serverNodeInfo = nodeInfo{
 			name:   nodes.Items[1].Name,
-			nodeIP: ips[1],
+			nodeIP: ips[0],
 		}
 	})
 
 	ginkgo.It("should be able to preserve UDP traffic when server pod cycles for a NodePort service", func() {
-		// TODO(#91236): Remove once the test is debugged and fixed.
-		// dump conntrack table for debugging
-		defer dumpConntrack(cs)
 
 		// Create a NodePort service
 		udpJig := e2eservice.NewTestJig(cs, ns, serviceName)
@@ -197,9 +202,6 @@ var _ = SIGDescribe("Conntrack", func() {
 	})
 
 	ginkgo.It("should be able to preserve UDP traffic when server pod cycles for a ClusterIP service", func() {
-		// TODO(#91236): Remove once the test is debugged and fixed.
-		// dump conntrack table for debugging
-		defer dumpConntrack(cs)
 
 		// Create a ClusterIP service
 		udpJig := e2eservice.NewTestJig(cs, ns, serviceName)
@@ -276,24 +278,3 @@ var _ = SIGDescribe("Conntrack", func() {
 		}
 	})
 })
-
-func dumpConntrack(cs clientset.Interface) {
-	// Dump conntrack table of each node for troubleshooting using the kube-proxy pods
-	namespace := "kube-system"
-	pods, err := cs.CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{})
-	if err != nil || len(pods.Items) == 0 {
-		framework.Logf("failed to list kube-proxy pods in namespace: %s", namespace)
-		return
-	}
-	cmd := "conntrack -L"
-	for _, pod := range pods.Items {
-		if strings.Contains(pod.Name, "kube-proxy") {
-			stdout, err := framework.RunHostCmd(namespace, pod.Name, cmd)
-			if err != nil {
-				framework.Logf("Failed to dump conntrack table of node %s: %v", pod.Spec.NodeName, err)
-				continue
-			}
-			framework.Logf("conntrack table of node %s: %s", pod.Spec.NodeName, stdout)
-		}
-	}
-}
