@@ -71,11 +71,20 @@ logexporter_failed=0
 # process will exit with a non-zero exit code).
 readonly log_dump_expected_success_percentage="${LOG_DUMP_EXPECTED_SUCCESS_PERCENTAGE:-0}"
 
+function print-deprecation-note() {
+  local -r dashline=$(printf -- '-%.0s' {1..100})
+  echo "${dashline}"
+  echo "k/k version of the log-dump.sh script is deprecated!"
+  echo "Please migrate your test job to use test-infra's repo version of log-dump.sh!"
+  echo "Migration steps can be found in the readme file."
+  echo "${dashline}"
+}
+
 # TODO: Get rid of all the sourcing of bash dependencies eventually.
 function setup() {
   KUBE_ROOT=$(dirname "${BASH_SOURCE[0]}")/../..
   if [[ -z "${use_custom_instance_list}" ]]; then
-    : "${KUBE_CONFIG_FILE:='config-test.sh'}"
+    : "${KUBE_CONFIG_FILE:=config-test.sh}"
     echo 'Sourcing kube-util.sh'
     source "${KUBE_ROOT}/cluster/kube-util.sh"
     echo 'Detecting project'
@@ -670,6 +679,7 @@ function detect_node_failures() {
 }
 
 function main() {
+  print-deprecation-note
   setup
   kube::util::ensure-temp-dir
   # Copy master logs to artifacts dir locally (through SSH).

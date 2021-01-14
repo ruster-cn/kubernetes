@@ -107,6 +107,12 @@ const (
 	// document.
 	StorageVersionHash featuregate.Feature = "StorageVersionHash"
 
+	// owner: @caesarxuchao @roycaihw
+	// alpha: v1.20
+	//
+	// Enable the storage version API.
+	StorageVersionAPI featuregate.Feature = "StorageVersionAPI"
+
 	// owner: @wojtek-t
 	// alpha: v1.15
 	// beta: v1.16
@@ -173,8 +179,9 @@ var defaultKubernetesFeatureGates = map[featuregate.Feature]featuregate.FeatureS
 	RemainingItemCount:       {Default: true, PreRelease: featuregate.Beta},
 	ServerSideApply:          {Default: true, PreRelease: featuregate.Beta},
 	StorageVersionHash:       {Default: true, PreRelease: featuregate.Beta},
+	StorageVersionAPI:        {Default: false, PreRelease: featuregate.Alpha},
 	WatchBookmark:            {Default: true, PreRelease: featuregate.GA, LockToDefault: true},
-	APIPriorityAndFairness:   {Default: false, PreRelease: featuregate.Alpha},
+	APIPriorityAndFairness:   {Default: true, PreRelease: featuregate.Beta},
 	RemoveSelfLink:           {Default: true, PreRelease: featuregate.Beta},
 	SelectorIndex:            {Default: true, PreRelease: featuregate.GA, LockToDefault: true},
 	WarningHeaders:           {Default: true, PreRelease: featuregate.Beta},

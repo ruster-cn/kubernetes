@@ -567,7 +567,7 @@ func TestShuffleStrings(t *testing.T) {
 	}
 }
 
-func TestFilterIncorrectIPVersion(t *testing.T) {
+func TestMapIPsByIPFamily(t *testing.T) {
 	testCases := []struct {
 		desc            string
 		ipString        []string
@@ -650,15 +650,122 @@ func TestFilterIncorrectIPVersion(t *testing.T) {
 	for _, testcase := range testCases {
 		t.Run(testcase.desc, func(t *testing.T) {
 			ipFamily := v1.IPv4Protocol
+			otherIPFamily := v1.IPv6Protocol
+
 			if testcase.wantIPv6 {
 				ipFamily = v1.IPv6Protocol
+				otherIPFamily = v1.IPv4Protocol
 			}
-			correct, incorrect := FilterIncorrectIPVersion(testcase.ipString, ipFamily)
-			if !reflect.DeepEqual(testcase.expectCorrect, correct) {
-				t.Errorf("Test %v failed: expected %v, got %v", testcase.desc, testcase.expectCorrect, correct)
+
+			ipMap := MapIPsByIPFamily(testcase.ipString)
+
+			if !reflect.DeepEqual(testcase.expectCorrect, ipMap[ipFamily]) {
+				t.Errorf("Test %v failed: expected %v, got %v", testcase.desc, testcase.expectCorrect, ipMap[ipFamily])
 			}
-			if !reflect.DeepEqual(testcase.expectIncorrect, incorrect) {
-				t.Errorf("Test %v failed: expected %v, got %v", testcase.desc, testcase.expectIncorrect, incorrect)
+			if !reflect.DeepEqual(testcase.expectIncorrect, ipMap[otherIPFamily]) {
+				t.Errorf("Test %v failed: expected %v, got %v", testcase.desc, testcase.expectIncorrect, ipMap[otherIPFamily])
+			}
+		})
+	}
+}
+
+func TestMapCIDRsByIPFamily(t *testing.T) {
+	testCases := []struct {
+		desc            string
+		ipString        []string
+		wantIPv6        bool
+		expectCorrect   []string
+		expectIncorrect []string
+	}{
+		{
+			desc:            "empty input IPv4",
+			ipString:        []string{},
+			wantIPv6:        false,
+			expectCorrect:   nil,
+			expectIncorrect: nil,
+		},
+		{
+			desc:            "empty input IPv6",
+			ipString:        []string{},
+			wantIPv6:        true,
+			expectCorrect:   nil,
+			expectIncorrect: nil,
+		},
+		{
+			desc:            "want IPv4 and receive IPv6",
+			ipString:        []string{"fd00:20::1/64"},
+			wantIPv6:        false,
+			expectCorrect:   nil,
+			expectIncorrect: []string{"fd00:20::1/64"},
+		},
+		{
+			desc:            "want IPv6 and receive IPv4",
+			ipString:        []string{"192.168.200.2/24"},
+			wantIPv6:        true,
+			expectCorrect:   nil,
+			expectIncorrect: []string{"192.168.200.2/24"},
+		},
+		{
+			desc:            "want IPv6 and receive IPv4 and IPv6",
+			ipString:        []string{"192.168.200.2/24", "192.1.34.23/24", "fd00:20::1/64", "2001:db9::3/64"},
+			wantIPv6:        true,
+			expectCorrect:   []string{"fd00:20::1/64", "2001:db9::3/64"},
+			expectIncorrect: []string{"192.168.200.2/24", "192.1.34.23/24"},
+		},
+		{
+			desc:            "want IPv4 and receive IPv4 and IPv6",
+			ipString:        []string{"192.168.200.2/24", "192.1.34.23/24", "fd00:20::1/64", "2001:db9::3/64"},
+			wantIPv6:        false,
+			expectCorrect:   []string{"192.168.200.2/24", "192.1.34.23/24"},
+			expectIncorrect: []string{"fd00:20::1/64", "2001:db9::3/64"},
+		},
+		{
+			desc:            "want IPv4 and receive IPv4 only",
+			ipString:        []string{"192.168.200.2/24", "192.1.34.23/24"},
+			wantIPv6:        false,
+			expectCorrect:   []string{"192.168.200.2/24", "192.1.34.23/24"},
+			expectIncorrect: nil,
+		},
+		{
+			desc:            "want IPv6 and receive IPv4 only",
+			ipString:        []string{"192.168.200.2/24", "192.1.34.23/24"},
+			wantIPv6:        true,
+			expectCorrect:   nil,
+			expectIncorrect: []string{"192.168.200.2/24", "192.1.34.23/24"},
+		},
+		{
+			desc:            "want IPv4 and receive IPv6 only",
+			ipString:        []string{"fd00:20::1/64", "2001:db9::3/64"},
+			wantIPv6:        false,
+			expectCorrect:   nil,
+			expectIncorrect: []string{"fd00:20::1/64", "2001:db9::3/64"},
+		},
+		{
+			desc:            "want IPv6 and receive IPv6 only",
+			ipString:        []string{"fd00:20::1/64", "2001:db9::3/64"},
+			wantIPv6:        true,
+			expectCorrect:   []string{"fd00:20::1/64", "2001:db9::3/64"},
+			expectIncorrect: nil,
+		},
+	}
+
+	for _, testcase := range testCases {
+		t.Run(testcase.desc, func(t *testing.T) {
+			ipFamily := v1.IPv4Protocol
+			otherIPFamily := v1.IPv6Protocol
+
+			if testcase.wantIPv6 {
+				ipFamily = v1.IPv6Protocol
+				otherIPFamily = v1.IPv4Protocol
+			}
+
+			cidrMap := MapCIDRsByIPFamily(testcase.ipString)
+
+			if !reflect.DeepEqual(testcase.expectCorrect, cidrMap[ipFamily]) {
+				t.Errorf("Test %v failed: expected %v, got %v", testcase.desc, testcase.expectCorrect, cidrMap[ipFamily])
+			}
+			if !reflect.DeepEqual(testcase.expectIncorrect, cidrMap[otherIPFamily]) {
+				t.Errorf("Test %v failed: expected %v, got %v", testcase.desc, testcase.expectIncorrect, cidrMap[otherIPFamily])
 			}
 		})
 	}
@@ -821,180 +928,4 @@ func TestGetClusterIPByFamily(t *testing.T) {
 		})
 	}
 
-}
-
-func TestFilterIncorrectLoadBalancerIngress(t *testing.T) {
-	ipModeVIP := v1.LoadBalancerIPModeVIP
-	testCases := []struct {
-		name              string
-		ingresses         []v1.LoadBalancerIngress
-		ipFamily          v1.IPFamily
-		expectedCorrect   []v1.LoadBalancerIngress
-		expectedIncorrect []v1.LoadBalancerIngress
-	}{
-		{
-			name:     "IPv4 only valid ingresses",
-			ipFamily: v1.IPv4Protocol,
-			ingresses: []v1.LoadBalancerIngress{
-				{
-					IP:     "1.2.3.4",
-					IPMode: &ipModeVIP,
-				},
-				{
-					IP: "1.2.3.5",
-				},
-			},
-			expectedCorrect: []v1.LoadBalancerIngress{
-				{
-					IP:     "1.2.3.4",
-					IPMode: &ipModeVIP,
-				},
-				{
-					IP: "1.2.3.5",
-				},
-			},
-			expectedIncorrect: nil,
-		},
-		{
-			name:     "IPv4 some invalid ingresses",
-			ipFamily: v1.IPv4Protocol,
-			ingresses: []v1.LoadBalancerIngress{
-				{
-					IP:     "1.2.3.4",
-					IPMode: &ipModeVIP,
-				},
-				{
-					IP: "2000::1",
-				},
-				{
-					Hostname: "dummy",
-				},
-			},
-			expectedCorrect: []v1.LoadBalancerIngress{
-				{
-					IP:     "1.2.3.4",
-					IPMode: &ipModeVIP,
-				},
-				{
-					Hostname: "dummy", // weirdly no IP is a valid IPv4 but invalid IPv6
-				},
-			},
-			expectedIncorrect: []v1.LoadBalancerIngress{
-				{
-					IP: "2000::1",
-				},
-			},
-		},
-		{
-			name:     "IPv4 only invalid ingresses",
-			ipFamily: v1.IPv4Protocol,
-			ingresses: []v1.LoadBalancerIngress{
-				{
-					IP: "2000::1",
-				},
-				{
-					IP:     "2000::1",
-					IPMode: &ipModeVIP,
-				},
-			},
-			expectedCorrect: nil,
-			expectedIncorrect: []v1.LoadBalancerIngress{
-				{
-					IP: "2000::1",
-				},
-				{
-					IP:     "2000::1",
-					IPMode: &ipModeVIP,
-				},
-			},
-		},
-		{
-			name:     "IPv6 only valid ingresses",
-			ipFamily: v1.IPv6Protocol,
-			ingresses: []v1.LoadBalancerIngress{
-				{
-					IP:     "2000::1",
-					IPMode: &ipModeVIP,
-				},
-				{
-					IP: "2000::2",
-				},
-			},
-			expectedCorrect: []v1.LoadBalancerIngress{
-				{
-					IP:     "2000::1",
-					IPMode: &ipModeVIP,
-				},
-				{
-					IP: "2000::2",
-				},
-			},
-			expectedIncorrect: nil,
-		},
-		{
-			name:     "IPv6 some invalid ingresses",
-			ipFamily: v1.IPv6Protocol,
-			ingresses: []v1.LoadBalancerIngress{
-				{
-					IP:     "2000::1",
-					IPMode: &ipModeVIP,
-				},
-				{
-					IP: "1.2.3.4",
-				},
-				{
-					Hostname: "dummy",
-				},
-			},
-			expectedCorrect: []v1.LoadBalancerIngress{
-				{
-					IP:     "2000::1",
-					IPMode: &ipModeVIP,
-				},
-			},
-			expectedIncorrect: []v1.LoadBalancerIngress{
-				{
-					IP: "1.2.3.4",
-				},
-				{
-					Hostname: "dummy", // weirdly no IP is a valid IPv4 but invalid IPv6
-				},
-			},
-		},
-		{
-			name:     "IPv6 only invalid ingresses",
-			ipFamily: v1.IPv6Protocol,
-			ingresses: []v1.LoadBalancerIngress{
-				{
-					IP: "1.2.3.4",
-				},
-				{
-					IP:     "1.2.3.5",
-					IPMode: &ipModeVIP,
-				},
-			},
-			expectedCorrect: nil,
-			expectedIncorrect: []v1.LoadBalancerIngress{
-				{
-					IP: "1.2.3.4",
-				},
-				{
-					IP:     "1.2.3.5",
-					IPMode: &ipModeVIP,
-				},
-			},
-		},
-	}
-
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
-			correctIngresses, incorrectIngresses := FilterIncorrectLoadBalancerIngress(testCase.ingresses, testCase.ipFamily)
-			if !reflect.DeepEqual(correctIngresses, testCase.expectedCorrect) {
-				t.Errorf("Test %v failed: expected %v, got %v", testCase.name, testCase.expectedCorrect, correctIngresses)
-			}
-			if !reflect.DeepEqual(incorrectIngresses, testCase.expectedIncorrect) {
-				t.Errorf("Test %v failed: expected %v, got %v", testCase.name, testCase.expectedIncorrect, incorrectIngresses)
-			}
-		})
-	}
 }

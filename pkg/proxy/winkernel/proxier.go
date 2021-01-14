@@ -162,6 +162,11 @@ type endpointsInfo struct {
 	refCount        *uint16
 	providerAddress string
 	hns             HostNetworkService
+
+	// conditions
+	ready       bool
+	serving     bool
+	terminating bool
 }
 
 // String is part of proxy.Endpoint interface.
@@ -172,6 +177,21 @@ func (info *endpointsInfo) String() string {
 // GetIsLocal is part of proxy.Endpoint interface.
 func (info *endpointsInfo) GetIsLocal() bool {
 	return info.isLocal
+}
+
+// IsReady returns true if an endpoint is ready and not terminating.
+func (info *endpointsInfo) IsReady() bool {
+	return info.ready
+}
+
+// IsServing returns true if an endpoint is ready, regardless of it's terminating state.
+func (info *endpointsInfo) IsServing() bool {
+	return info.serving
+}
+
+// IsTerminating returns true if an endpoint is terminating.
+func (info *endpointsInfo) IsTerminating() bool {
+	return info.terminating
 }
 
 // GetTopology returns the topology information of the endpoint.
@@ -300,6 +320,10 @@ func (proxier *Proxier) newEndpointInfo(baseInfo *proxy.BaseEndpointInfo) proxy.
 		refCount:   new(uint16),
 		hnsID:      "",
 		hns:        proxier.hns,
+
+		ready:       baseInfo.Ready,
+		serving:     baseInfo.Serving,
+		terminating: baseInfo.Terminating,
 	}
 
 	return info
@@ -311,6 +335,10 @@ func newSourceVIP(hns HostNetworkService, network string, ip string, mac string,
 		isLocal:         true,
 		macAddress:      mac,
 		providerAddress: providerAddress,
+
+		ready:       true,
+		serving:     true,
+		terminating: false,
 	}
 	ep, err := hns.createEndpoint(hnsEndpoint, network)
 	return ep, err
@@ -941,7 +969,7 @@ func (proxier *Proxier) syncProxyRules() {
 	// We assume that if this was called, we really want to sync them,
 	// even if nothing changed in the meantime. In other words, callers are
 	// responsible for detecting no-op changes and not calling this function.
-	serviceUpdateResult := proxy.UpdateServiceMap(proxier.serviceMap, proxier.serviceChanges)
+	serviceUpdateResult := proxier.serviceMap.Update(proxier.serviceChanges)
 	endpointUpdateResult := proxier.endpointsMap.Update(proxier.endpointsChanges)
 
 	staleServices := serviceUpdateResult.UDPStaleClusterIP
@@ -1010,10 +1038,13 @@ func (proxier *Proxier) syncProxyRules() {
 		containsNodeIP := false
 
 		for _, epInfo := range proxier.endpointsMap[svcName] {
-
 			ep, ok := epInfo.(*endpointsInfo)
 			if !ok {
 				klog.Errorf("Failed to cast endpointsInfo %q", svcName.String())
+				continue
+			}
+
+			if !ep.IsReady() {
 				continue
 			}
 
@@ -1088,7 +1119,18 @@ func (proxier *Proxier) syncProxyRules() {
 				}
 			}
 
-			if proxier.network.networkType == "Overlay" {
+			// For Overlay networks 'SourceVIP' on an Load balancer Policy can either be chosen as
+			// a) Source VIP configured on kube-proxy (or)
+			// b) Node IP of the current node
+			//
+			// For L2Bridge network the Source VIP is always the NodeIP of the current node and the same
+			// would be configured on kube-proxy as SourceVIP
+			//
+			// The logic for choosing the SourceVIP in Overlay networks is based on the backend endpoints:
+			// a) Endpoints are any IP's outside the cluster ==> Choose NodeIP as the SourceVIP
+			// b) Endpoints are IP addresses of a remote node => Choose NodeIP as the SourceVIP
+			// c) Everything else (Local POD's, Remote POD's, Node IP of current node) ==> Choose the configured SourceVIP
+			if proxier.network.networkType == "Overlay" && !ep.GetIsLocal() {
 				providerAddress := proxier.network.findRemoteSubnetProviderAddress(ep.IP())
 
 				isNodeIP := (ep.IP() == providerAddress)

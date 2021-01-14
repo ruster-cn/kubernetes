@@ -89,7 +89,7 @@ go_library(
         "//test/e2e/framework/testfiles:go_default_library",
         "//test/e2e/framework/volume:go_default_library",
         "//test/e2e/storage/drivers:go_default_library",
-        "//test/e2e/storage/testpatterns:go_default_library",
+        "//test/e2e/storage/framework:go_default_library",
         "//test/e2e/storage/testsuites:go_default_library",
         "//test/e2e/storage/utils:go_default_library",
         "//test/utils/image:go_default_library",
@@ -100,6 +100,7 @@ go_library(
         "//vendor/github.com/onsi/gomega:go_default_library",
         "//vendor/google.golang.org/api/googleapi:go_default_library",
         "//vendor/google.golang.org/grpc/codes:go_default_library",
+        "//vendor/k8s.io/utils/pointer:go_default_library",
     ],
 )
 
@@ -116,8 +117,8 @@ filegroup(
         ":package-srcs",
         "//test/e2e/storage/drivers:all-srcs",
         "//test/e2e/storage/external:all-srcs",
+        "//test/e2e/storage/framework:all-srcs",
         "//test/e2e/storage/podlogs:all-srcs",
-        "//test/e2e/storage/testpatterns:all-srcs",
         "//test/e2e/storage/testsuites:all-srcs",
         "//test/e2e/storage/utils:all-srcs",
         "//test/e2e/storage/vsphere:all-srcs",
