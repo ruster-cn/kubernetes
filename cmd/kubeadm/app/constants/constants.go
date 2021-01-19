@@ -317,7 +317,7 @@ const (
 	NodeBootstrapTokenAuthGroup = "system:bootstrappers:kubeadm:default-node-token"
 
 	// DefaultCIImageRepository points to image registry where CI uploads images from ci-cross build job
-	DefaultCIImageRepository = "gcr.io/kubernetes-ci-images"
+	DefaultCIImageRepository = "gcr.io/k8s-staging-ci-images"
 
 	// CoreDNSConfigMap specifies in what ConfigMap in the kube-system namespace the CoreDNS config should be stored
 	CoreDNSConfigMap = "coredns"
@@ -453,13 +453,13 @@ var (
 	ControlPlaneComponents = []string{KubeAPIServer, KubeControllerManager, KubeScheduler}
 
 	// MinimumControlPlaneVersion specifies the minimum control plane version kubeadm can deploy
-	MinimumControlPlaneVersion = version.MustParseSemantic("v1.19.0")
+	MinimumControlPlaneVersion = version.MustParseSemantic("v1.20.0")
 
 	// MinimumKubeletVersion specifies the minimum version of kubelet which kubeadm supports
-	MinimumKubeletVersion = version.MustParseSemantic("v1.19.0")
+	MinimumKubeletVersion = version.MustParseSemantic("v1.20.0")
 
 	// CurrentKubernetesVersion specifies current Kubernetes version supported by kubeadm
-	CurrentKubernetesVersion = version.MustParseSemantic("v1.20.0")
+	CurrentKubernetesVersion = version.MustParseSemantic("v1.21.0")
 
 	// SupportedEtcdVersion lists officially supported etcd versions with corresponding Kubernetes releases
 	SupportedEtcdVersion = map[uint8]string{
@@ -472,6 +472,7 @@ var (
 		19: "3.4.13-0",
 		20: "3.4.13-0",
 		21: "3.4.13-0",
+		22: "3.4.13-0",
 	}
 
 	// KubeadmCertsClusterRoleName sets the name for the ClusterRole that allows

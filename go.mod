@@ -53,7 +53,7 @@ require (
 	github.com/gogo/protobuf v1.3.1
 	github.com/golang/groupcache v0.0.0-20200121045136-8c9f03a8e57e
 	github.com/golang/mock v1.4.4
-	github.com/google/cadvisor v0.38.6
+	github.com/google/cadvisor v0.38.7
 	github.com/google/go-cmp v0.5.2
 	github.com/google/gofuzz v1.1.0
 	github.com/google/uuid v1.1.2
@@ -125,7 +125,7 @@ require (
 	k8s.io/controller-manager v0.0.0
 	k8s.io/cri-api v0.0.0
 	k8s.io/csi-translation-lib v0.0.0
-	k8s.io/gengo v0.0.0-20201113003025-83324d819ded
+	k8s.io/gengo v0.0.0-20201214224949-b6c5ce23f027
 	k8s.io/heapster v1.2.0-beta.1
 	k8s.io/klog/v2 v2.4.0
 	k8s.io/kube-aggregator v0.0.0
@@ -281,7 +281,7 @@ replace (
 	github.com/golangplus/fmt => github.com/golangplus/fmt v0.0.0-20150411045040-2a5d6d7d2995
 	github.com/golangplus/testing => github.com/golangplus/testing v0.0.0-20180327235837-af21d9c3145e
 	github.com/google/btree => github.com/google/btree v1.0.0
-	github.com/google/cadvisor => github.com/google/cadvisor v0.38.6
+	github.com/google/cadvisor => github.com/google/cadvisor v0.38.7
 	github.com/google/go-cmp => github.com/google/go-cmp v0.5.2
 	github.com/google/gofuzz => github.com/google/gofuzz v1.1.0
 	github.com/google/martian => github.com/google/martian v2.1.0+incompatible
@@ -505,7 +505,7 @@ replace (
 	k8s.io/controller-manager => ./staging/src/k8s.io/controller-manager
 	k8s.io/cri-api => ./staging/src/k8s.io/cri-api
 	k8s.io/csi-translation-lib => ./staging/src/k8s.io/csi-translation-lib
-	k8s.io/gengo => k8s.io/gengo v0.0.0-20201113003025-83324d819ded
+	k8s.io/gengo => k8s.io/gengo v0.0.0-20201214224949-b6c5ce23f027
 	k8s.io/heapster => k8s.io/heapster v1.2.0-beta.1
 	k8s.io/klog/v2 => k8s.io/klog/v2 v2.4.0
 	k8s.io/kube-aggregator => ./staging/src/k8s.io/kube-aggregator

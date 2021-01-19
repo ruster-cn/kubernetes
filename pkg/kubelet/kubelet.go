@@ -444,7 +444,6 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 		nodeLister = kubeInformers.Core().V1().Nodes().Lister()
 		nodeHasSynced = func() bool {
 			if kubeInformers.Core().V1().Nodes().Informer().HasSynced() {
-				klog.Infof("kubelet nodes sync")
 				return true
 			}
 			klog.Infof("kubelet nodes not sync")
@@ -565,7 +564,7 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 	klet.configMapManager = configMapManager
 
 	if klet.experimentalHostUserNamespaceDefaulting {
-		klog.Infof("Experimental host user namespace defaulting is enabled.")
+		klog.Info("Experimental host user namespace defaulting is enabled.")
 	}
 
 	machineInfo, err := klet.cadvisor.MachineInfo()
