@@ -183,7 +183,6 @@ pkg/volume/csi/fake
 pkg/volume/git_repo
 pkg/volume/iscsi
 pkg/volume/testing
-pkg/volume/util/fs
 pkg/volume/util/volumepathhandler
 pkg/volume/vsphere_volume
 plugin/pkg/admission/eventratelimit/apis/eventratelimit/v1alpha1
@@ -344,7 +343,6 @@ staging/src/k8s.io/apiserver/plugin/pkg/authenticator/token/oidc
 staging/src/k8s.io/apiserver/plugin/pkg/authenticator/token/tokentest
 staging/src/k8s.io/apiserver/plugin/pkg/authenticator/token/webhook
 staging/src/k8s.io/apiserver/plugin/pkg/authorizer/webhook
-staging/src/k8s.io/cli-runtime/pkg/genericclioptions
 staging/src/k8s.io/cli-runtime/pkg/printers
 staging/src/k8s.io/cli-runtime/pkg/resource
 staging/src/k8s.io/client-go/discovery

@@ -231,8 +231,8 @@ func initImageConfigs() (map[int]Config, map[int]Config) {
 	configs[InvalidRegistryImage] = Config{invalidRegistry, "alpine", "3.1"}
 	configs[IpcUtils] = Config{e2eRegistry, "ipc-utils", "1.0"}
 	configs[JessieDnsutils] = Config{e2eRegistry, "jessie-dnsutils", "1.0"}
-	configs[Kitten] = Config{e2eRegistry, "kitten", "1.0"}
-	configs[Nautilus] = Config{e2eRegistry, "nautilus", "1.0"}
+	configs[Kitten] = Config{promoterE2eRegistry, "kitten", "1.4"}
+	configs[Nautilus] = Config{promoterE2eRegistry, "nautilus", "1.4"}
 	configs[NFSProvisioner] = Config{sigStorageRegistry, "nfs-provisioner", "v2.2.2"}
 	configs[Nginx] = Config{dockerLibraryRegistry, "nginx", "1.14-alpine"}
 	configs[NginxNew] = Config{dockerLibraryRegistry, "nginx", "1.15-alpine"}
@@ -244,7 +244,7 @@ func initImageConfigs() (map[int]Config, map[int]Config) {
 	configs[PrometheusDummyExporter] = Config{gcRegistry, "prometheus-dummy-exporter", "v0.1.0"}
 	configs[PrometheusToSd] = Config{gcRegistry, "prometheus-to-sd", "v0.5.0"}
 	configs[Redis] = Config{dockerLibraryRegistry, "redis", "5.0.5-alpine"}
-	configs[RegressionIssue74839] = Config{e2eRegistry, "regression-issue-74839-amd64", "1.0"}
+	configs[RegressionIssue74839] = Config{promoterE2eRegistry, "regression-issue-74839", "1.2"}
 	configs[ResourceConsumer] = Config{e2eRegistry, "resource-consumer", "1.5"}
 	configs[SdDummyExporter] = Config{gcRegistry, "sd-dummy-exporter", "v0.2.0"}
 	configs[VolumeNFSServer] = Config{e2eVolumeRegistry, "nfs", "1.0"}
