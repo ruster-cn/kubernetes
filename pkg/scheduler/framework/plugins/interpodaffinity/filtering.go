@@ -85,9 +85,6 @@ func (s *preFilterState) updateWithPod(updatedPodInfo *framework.PodInfo, node *
 	s.topologyToMatchedAntiAffinityTerms.updateWithAntiAffinityTerms(updatedPodInfo.Pod, node, s.podInfo.RequiredAntiAffinityTerms, multiplier)
 }
 
-// TODO(Huang-Wei): It might be possible to use "make(map[topologyPair]*int64)" so that
-// we can do atomic additions instead of using a global mutex, however we need to consider
-// how to init each topologyToMatchedTermCount.
 type topologyPair struct {
 	key   string
 	value string
@@ -240,10 +237,10 @@ func (pl *InterPodAffinity) PreFilter(ctx context.Context, cycleState *framework
 	var nodesWithRequiredAntiAffinityPods []*framework.NodeInfo
 	var err error
 	if allNodes, err = pl.sharedLister.NodeInfos().List(); err != nil {
-		return framework.NewStatus(framework.Error, fmt.Sprintf("failed to list NodeInfos: %v", err))
+		return framework.AsStatus(fmt.Errorf("failed to list NodeInfos: %w", err))
 	}
 	if nodesWithRequiredAntiAffinityPods, err = pl.sharedLister.NodeInfos().HavePodsWithRequiredAntiAffinityList(); err != nil {
-		return framework.NewStatus(framework.Error, fmt.Sprintf("failed to list NodeInfos with pods with affinity: %v", err))
+		return framework.AsStatus(fmt.Errorf("failed to list NodeInfos with pods with affinity: %w", err))
 	}
 
 	podInfo := framework.NewPodInfo(pod)
@@ -278,7 +275,7 @@ func (pl *InterPodAffinity) PreFilterExtensions() framework.PreFilterExtensions 
 func (pl *InterPodAffinity) AddPod(ctx context.Context, cycleState *framework.CycleState, podToSchedule *v1.Pod, podInfoToAdd *framework.PodInfo, nodeInfo *framework.NodeInfo) *framework.Status {
 	state, err := getPreFilterState(cycleState)
 	if err != nil {
-		return framework.NewStatus(framework.Error, err.Error())
+		return framework.AsStatus(err)
 	}
 	state.updateWithPod(podInfoToAdd, nodeInfo.Node(), 1)
 	return nil
@@ -288,7 +285,7 @@ func (pl *InterPodAffinity) AddPod(ctx context.Context, cycleState *framework.Cy
 func (pl *InterPodAffinity) RemovePod(ctx context.Context, cycleState *framework.CycleState, podToSchedule *v1.Pod, podInfoToRemove *framework.PodInfo, nodeInfo *framework.NodeInfo) *framework.Status {
 	state, err := getPreFilterState(cycleState)
 	if err != nil {
-		return framework.NewStatus(framework.Error, err.Error())
+		return framework.AsStatus(err)
 	}
 	state.updateWithPod(podInfoToRemove, nodeInfo.Node(), -1)
 	return nil
@@ -378,7 +375,7 @@ func (pl *InterPodAffinity) Filter(ctx context.Context, cycleState *framework.Cy
 
 	state, err := getPreFilterState(cycleState)
 	if err != nil {
-		return framework.NewStatus(framework.Error, err.Error())
+		return framework.AsStatus(err)
 	}
 
 	if !satisfyPodAffinity(state, nodeInfo) {

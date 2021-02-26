@@ -21,8 +21,8 @@ package tools
 import (
 	// linting tools
 	_ "github.com/client9/misspell/cmd/misspell"
+	_ "github.com/golangci/golangci-lint/cmd/golangci-lint"
 	_ "github.com/google/go-flow-levee/cmd/levee"
-	_ "golang.org/x/lint/golint"
 	_ "honnef.co/go/tools/cmd/staticcheck"
 
 	// benchmarking tools
@@ -34,4 +34,7 @@ import (
 	_ "github.com/bazelbuild/bazel-gazelle/cmd/gazelle"
 	_ "github.com/bazelbuild/buildtools/buildozer"
 	_ "k8s.io/repo-infra/cmd/kazel"
+
+	// dependencies
+	_ "sigs.k8s.io/zeitgeist"
 )

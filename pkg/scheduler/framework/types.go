@@ -29,6 +29,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/klog/v2"
@@ -43,7 +44,7 @@ var generation int64
 // the pod's status in the scheduling queue, such as the timestamp when
 // it's added to the queue.
 type QueuedPodInfo struct {
-	Pod *v1.Pod
+	*PodInfo
 	// The time pod added to the scheduling queue.
 	Timestamp time.Time
 	// Number of schedule attempts before successfully scheduled.
@@ -59,7 +60,7 @@ type QueuedPodInfo struct {
 // DeepCopy returns a deep copy of the QueuedPodInfo object.
 func (pqi *QueuedPodInfo) DeepCopy() *QueuedPodInfo {
 	return &QueuedPodInfo{
-		Pod:                     pqi.Pod.DeepCopy(),
+		PodInfo:                 pqi.PodInfo.DeepCopy(),
 		Timestamp:               pqi.Timestamp,
 		Attempts:                pqi.Attempts,
 		InitialAttemptTimestamp: pqi.InitialAttemptTimestamp,
@@ -78,6 +79,66 @@ type PodInfo struct {
 	ParseError                 error
 }
 
+// DeepCopy returns a deep copy of the PodInfo object.
+func (pi *PodInfo) DeepCopy() *PodInfo {
+	return &PodInfo{
+		Pod:                        pi.Pod.DeepCopy(),
+		RequiredAffinityTerms:      pi.RequiredAffinityTerms,
+		RequiredAntiAffinityTerms:  pi.RequiredAntiAffinityTerms,
+		PreferredAffinityTerms:     pi.PreferredAffinityTerms,
+		PreferredAntiAffinityTerms: pi.PreferredAntiAffinityTerms,
+		ParseError:                 pi.ParseError,
+	}
+}
+
+// Update creates a full new PodInfo by default. And only updates the pod when the PodInfo
+// has been instantiated and the passed pod is the exact same one as the original pod.
+func (pi *PodInfo) Update(pod *v1.Pod) {
+	if pod != nil && pi.Pod != nil && pi.Pod.UID == pod.UID {
+		// PodInfo includes immutable information, and so it is safe to update the pod in place if it is
+		// the exact same pod
+		pi.Pod = pod
+		return
+	}
+	var preferredAffinityTerms []v1.WeightedPodAffinityTerm
+	var preferredAntiAffinityTerms []v1.WeightedPodAffinityTerm
+	if affinity := pod.Spec.Affinity; affinity != nil {
+		if a := affinity.PodAffinity; a != nil {
+			preferredAffinityTerms = a.PreferredDuringSchedulingIgnoredDuringExecution
+		}
+		if a := affinity.PodAntiAffinity; a != nil {
+			preferredAntiAffinityTerms = a.PreferredDuringSchedulingIgnoredDuringExecution
+		}
+	}
+
+	// Attempt to parse the affinity terms
+	var parseErrs []error
+	requiredAffinityTerms, err := getAffinityTerms(pod, schedutil.GetPodAffinityTerms(pod.Spec.Affinity))
+	if err != nil {
+		parseErrs = append(parseErrs, fmt.Errorf("requiredAffinityTerms: %w", err))
+	}
+	requiredAntiAffinityTerms, err := getAffinityTerms(pod,
+		schedutil.GetPodAntiAffinityTerms(pod.Spec.Affinity))
+	if err != nil {
+		parseErrs = append(parseErrs, fmt.Errorf("requiredAntiAffinityTerms: %w", err))
+	}
+	weightedAffinityTerms, err := getWeightedAffinityTerms(pod, preferredAffinityTerms)
+	if err != nil {
+		parseErrs = append(parseErrs, fmt.Errorf("preferredAffinityTerms: %w", err))
+	}
+	weightedAntiAffinityTerms, err := getWeightedAffinityTerms(pod, preferredAntiAffinityTerms)
+	if err != nil {
+		parseErrs = append(parseErrs, fmt.Errorf("preferredAntiAffinityTerms: %w", err))
+	}
+
+	pi.Pod = pod
+	pi.RequiredAffinityTerms = requiredAffinityTerms
+	pi.RequiredAntiAffinityTerms = requiredAntiAffinityTerms
+	pi.PreferredAffinityTerms = weightedAffinityTerms
+	pi.PreferredAntiAffinityTerms = weightedAntiAffinityTerms
+	pi.ParseError = utilerrors.NewAggregate(parseErrs)
+}
+
 // AffinityTerm is a processed version of v1.PodAffinityTerm.
 type AffinityTerm struct {
 	Namespaces  sets.String
@@ -91,11 +152,17 @@ type WeightedAffinityTerm struct {
 	Weight int32
 }
 
+// Diagnosis records the details to diagnose a scheduling failure.
+type Diagnosis struct {
+	NodeToStatusMap      NodeToStatusMap
+	UnschedulablePlugins sets.String
+}
+
 // FitError describes a fit error of a pod.
 type FitError struct {
-	Pod                   *v1.Pod
-	NumAllNodes           int
-	FilteredNodesStatuses NodeToStatusMap
+	Pod         *v1.Pod
+	NumAllNodes int
+	Diagnosis   Diagnosis
 }
 
 const (
@@ -106,7 +173,7 @@ const (
 // Error returns detailed information of why the pod failed to fit on each node
 func (f *FitError) Error() string {
 	reasons := make(map[string]int)
-	for _, status := range f.FilteredNodesStatuses {
+	for _, status := range f.Diagnosis.NodeToStatusMap {
 		for _, reason := range status.Reasons() {
 			reasons[reason]++
 		}
@@ -170,46 +237,11 @@ func getWeightedAffinityTerms(pod *v1.Pod, v1Terms []v1.WeightedPodAffinityTerm)
 	return terms, nil
 }
 
-// NewPodInfo return a new PodInfo
+// NewPodInfo returns a new PodInfo.
 func NewPodInfo(pod *v1.Pod) *PodInfo {
-	var preferredAffinityTerms []v1.WeightedPodAffinityTerm
-	var preferredAntiAffinityTerms []v1.WeightedPodAffinityTerm
-	if affinity := pod.Spec.Affinity; affinity != nil {
-		if a := affinity.PodAffinity; a != nil {
-			preferredAffinityTerms = a.PreferredDuringSchedulingIgnoredDuringExecution
-		}
-		if a := affinity.PodAntiAffinity; a != nil {
-			preferredAntiAffinityTerms = a.PreferredDuringSchedulingIgnoredDuringExecution
-		}
-	}
-
-	// Attempt to parse the affinity terms
-	var parseErr error
-	requiredAffinityTerms, err := getAffinityTerms(pod, schedutil.GetPodAffinityTerms(pod.Spec.Affinity))
-	if err != nil {
-		parseErr = fmt.Errorf("requiredAffinityTerms: %w", err)
-	}
-	requiredAntiAffinityTerms, err := getAffinityTerms(pod, schedutil.GetPodAntiAffinityTerms(pod.Spec.Affinity))
-	if err != nil {
-		parseErr = fmt.Errorf("requiredAntiAffinityTerms: %w", err)
-	}
-	weightedAffinityTerms, err := getWeightedAffinityTerms(pod, preferredAffinityTerms)
-	if err != nil {
-		parseErr = fmt.Errorf("preferredAffinityTerms: %w", err)
-	}
-	weightedAntiAffinityTerms, err := getWeightedAffinityTerms(pod, preferredAntiAffinityTerms)
-	if err != nil {
-		parseErr = fmt.Errorf("preferredAntiAffinityTerms: %w", err)
-	}
-
-	return &PodInfo{
-		Pod:                        pod,
-		RequiredAffinityTerms:      requiredAffinityTerms,
-		RequiredAntiAffinityTerms:  requiredAntiAffinityTerms,
-		PreferredAffinityTerms:     weightedAffinityTerms,
-		PreferredAntiAffinityTerms: weightedAntiAffinityTerms,
-		ParseError:                 parseErr,
-	}
+	pInfo := &PodInfo{}
+	pInfo.Update(pod)
+	return pInfo
 }
 
 // ImageStateSummary provides summarized information about the state of an image.
@@ -562,7 +594,7 @@ func removeFromSlice(s []*PodInfo, k string) []*PodInfo {
 	for i := range s {
 		k2, err := GetPodKey(s[i].Pod)
 		if err != nil {
-			klog.Errorf("Cannot get pod key, err: %v", err)
+			klog.ErrorS(err, "Cannot get pod key", "pod", klog.KObj(s[i].Pod))
 			continue
 		}
 		if k == k2 {
@@ -591,7 +623,7 @@ func (n *NodeInfo) RemovePod(pod *v1.Pod) error {
 	for i := range n.Pods {
 		k2, err := GetPodKey(n.Pods[i].Pod)
 		if err != nil {
-			klog.Errorf("Cannot get pod key, err: %v", err)
+			klog.ErrorS(err, "Cannot get pod key", "pod", klog.KObj(n.Pods[i].Pod))
 			continue
 		}
 		if k == k2 {

@@ -248,6 +248,7 @@ kube::golang::setup_platforms
 # If you update this list, please also update build/BUILD.
 readonly KUBE_CLIENT_TARGETS=(
   cmd/kubectl
+  cmd/kubectl-convert
 )
 readonly KUBE_CLIENT_BINARIES=("${KUBE_CLIENT_TARGETS[@]##*/}")
 readonly KUBE_CLIENT_BINARIES_WIN=("${KUBE_CLIENT_BINARIES[@]/%/.exe}")
@@ -393,11 +394,15 @@ kube::golang::set_platform_envs() {
   export GOOS=${platform%/*}
   export GOARCH=${platform##*/}
 
-  # Do not set CC when building natively on a platform, only if cross-compiling from linux/amd64
-  if [[ $(kube::golang::host_platform) == "linux/amd64" ]]; then
-    # Dynamic CGO linking for other server architectures than linux/amd64 goes here
+  # Do not set CC when building natively on a platform, only if cross-compiling
+  if [[ $(kube::golang::host_platform) != "$platform" ]]; then
+    # Dynamic CGO linking for other server architectures than host architecture goes here
     # If you want to include support for more server platforms than these, add arch-specific gcc names here
     case "${platform}" in
+      "linux/amd64")
+        export CGO_ENABLED=1
+        export CC=${KUBE_LINUX_AMD64_CC:-x86_64-linux-gnu-gcc}
+        ;;
       "linux/arm")
         export CGO_ENABLED=1
         export CC=${KUBE_LINUX_ARM_CC:-arm-linux-gnueabihf-gcc}
@@ -415,6 +420,13 @@ kube::golang::set_platform_envs() {
         export CC=${KUBE_LINUX_S390X_CC:-s390x-linux-gnu-gcc}
         ;;
     esac
+  fi
+
+  # if CC is defined for platform then always enable it
+  ccenv=$(echo "$platform" | awk -F/ '{print "KUBE_" toupper($1) "_" toupper($2) "_CC"}')
+  if [ -n "${!ccenv-}" ]; then 
+    export CGO_ENABLED=1
+    export CC="${!ccenv}"
   fi
 }
 

@@ -23,7 +23,6 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -263,13 +262,13 @@ func (c *Configurator) createFromConfig(policy schedulerapi.Policy) (*Scheduler,
 	// "PrioritySort", "DefaultPreemption" and "DefaultBinder" were neither predicates nor priorities
 	// before. We add them by default.
 	plugins := schedulerapi.Plugins{
-		QueueSort: &schedulerapi.PluginSet{
+		QueueSort: schedulerapi.PluginSet{
 			Enabled: []schedulerapi.Plugin{{Name: queuesort.Name}},
 		},
-		PostFilter: &schedulerapi.PluginSet{
+		PostFilter: schedulerapi.PluginSet{
 			Enabled: []schedulerapi.Plugin{{Name: defaultpreemption.Name}},
 		},
-		Bind: &schedulerapi.PluginSet{
+		Bind: schedulerapi.PluginSet{
 			Enabled: []schedulerapi.Plugin{{Name: defaultbinder.Name}},
 		},
 	}
@@ -353,7 +352,7 @@ func MakeDefaultErrorFunc(client clientset.Interface, podLister corelisters.PodL
 		}
 
 		// As <cachedPod> is from SharedInformer, we need to do a DeepCopy() here.
-		podInfo.Pod = cachedPod.DeepCopy()
+		podInfo.PodInfo = framework.NewPodInfo(cachedPod.DeepCopy())
 		if err := podQueue.AddUnschedulableIfNotPresent(podInfo, podQueue.SchedulingCycle()); err != nil {
 			klog.ErrorS(err, "Error occurred")
 		}

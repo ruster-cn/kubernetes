@@ -161,6 +161,20 @@ function Dump-DebugInfoToConsole {
   } Catch { }
 }
 
+# Configures Window Defender preferences
+function Configure-WindowsDefender {
+  if ((Get-WindowsFeature -Name 'Windows-Defender').Installed) {
+    Log-Output "Configuring Windows Defender preferences"
+    Set-MpPreference -SubmitSamplesConsent NeverSend
+    Log-Output "Disabling Windows Defender sample submission"
+    Set-MpPreference -MAPSReporting Disabled
+    Log-Output "Disabling Windows Defender Microsoft Active Protection Service Reporting"
+
+    Log-Output "Defender Preferences"
+    Get-MpPreference
+  }
+}
+
 # Converts the kube-env string in Yaml
 #
 # Returns: a PowerShell Hashtable object containing the key-value pairs from
@@ -307,6 +321,8 @@ function Set-PrerequisiteOptions {
   # Use TLS 1.2: needed for Invoke-WebRequest downloads from github.com.
   [Net.ServicePointManager]::SecurityProtocol = `
       [Net.SecurityProtocolType]::Tls12
+
+  Configure-WindowsDefender
 }
 
 # Creates directories where other functions in this module will read and write
@@ -1319,6 +1335,46 @@ function Setup-ContainerRuntime {
     Create_DockerRegistryKey
     Configure_Dockerd
   }
+}
+
+function Test-ContainersFeatureInstalled {
+  return (Get-WindowsFeature Containers).Installed
+}
+
+# After this function returns, the computer must be restarted to complete
+# the installation!
+function Install-ContainersFeature {
+  Log-Output "Installing Windows 'Containers' feature"
+  Install-WindowsFeature Containers
+}
+
+function Test-DockerIsInstalled {
+  return ((Get-Package `
+               -ProviderName DockerMsftProvider `
+               -ErrorAction SilentlyContinue |
+           Where-Object Name -eq 'docker') -ne $null)
+}
+
+function Test-DockerIsRunning {
+  return ((Get-Service docker).Status -eq 'Running')
+}
+
+# Installs Docker EE via the DockerMsftProvider. Ensure that the Windows
+# Containers feature is installed before calling this function; otherwise,
+# a restart may be needed after this function returns.
+function Install-Docker {
+  Log-Output 'Installing NuGet module'
+  Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force
+
+  Log-Output 'Installing DockerMsftProvider module'
+  Install-Module -Name DockerMsftProvider -Repository PSGallery -Force
+
+  Log-Output "Installing latest Docker EE version"
+  Install-Package `
+      -Name docker `
+      -ProviderName DockerMsftProvider `
+      -Force `
+      -Verbose
 }
 
 # Add a registry key for docker in EventLog so that log messages are mapped

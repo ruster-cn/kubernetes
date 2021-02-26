@@ -397,7 +397,7 @@ func ValidateIPNetFromString(subnetStr string, minAddrs int64, isDualStack bool,
 	for _, s := range subnets {
 		numAddresses := utilnet.RangeSize(s)
 		if numAddresses < minAddrs {
-			allErrs = append(allErrs, field.Invalid(fldPath, s.String(), "subnet is too small"))
+			allErrs = append(allErrs, field.Invalid(fldPath, s.String(), fmt.Sprintf("subnet with %d address(es) is too small, the minimum is %d", numAddresses, minAddrs)))
 		}
 	}
 	return allErrs
@@ -440,9 +440,9 @@ func ValidatePodSubnetNodeMask(subnetStr string, c *kubeadm.ClusterConfiguration
 		// the pod subnet mask needs to allow one or multiple node-masks
 		// i.e. if it has a /24 the node mask must be between 24 and 32 for ipv4
 		if maskSize > nodeMask {
-			allErrs = append(allErrs, field.Invalid(fldPath, podSubnet.String(), "pod subnet size is smaller than the node subnet size"))
+			allErrs = append(allErrs, field.Invalid(fldPath, podSubnet.String(), fmt.Sprintf("the size of pod subnet with mask %d is smaller than the size of node subnet with mask %d", maskSize, nodeMask)))
 		} else if (nodeMask - maskSize) > constants.PodSubnetNodeMaskMaxDiff {
-			allErrs = append(allErrs, field.Invalid(fldPath, podSubnet.String(), fmt.Sprintf("pod subnet mask and node-mask difference can not be greater than %d", constants.PodSubnetNodeMaskMaxDiff)))
+			allErrs = append(allErrs, field.Invalid(fldPath, podSubnet.String(), fmt.Sprintf("pod subnet mask (%d) and node-mask (%d) difference is greater than %d", maskSize, nodeMask, constants.PodSubnetNodeMaskMaxDiff)))
 		}
 	}
 	return allErrs
@@ -454,7 +454,7 @@ func ValidatePodSubnetNodeMask(subnetStr string, c *kubeadm.ClusterConfiguration
 func getClusterNodeMask(c *kubeadm.ClusterConfiguration, isIPv6 bool) (int, error) {
 	// defaultNodeMaskCIDRIPv4 is default mask size for IPv4 node cidr for use by the controller manager
 	const defaultNodeMaskCIDRIPv4 = 24
-	// DefaultNodeMaskCIDRIPv6 is default mask size for IPv6 node cidr for use by the controller manager
+	// defaultNodeMaskCIDRIPv6 is default mask size for IPv6 node cidr for use by the controller manager
 	const defaultNodeMaskCIDRIPv6 = 64
 	var maskSize int
 	var maskArg string

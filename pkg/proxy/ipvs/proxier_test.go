@@ -36,7 +36,6 @@ import (
 	"k8s.io/kubernetes/pkg/proxy"
 	"k8s.io/kubernetes/pkg/proxy/healthcheck"
 	netlinktest "k8s.io/kubernetes/pkg/proxy/ipvs/testing"
-	utilproxy "k8s.io/kubernetes/pkg/proxy/util"
 	proxyutiliptables "k8s.io/kubernetes/pkg/proxy/util/iptables"
 	proxyutiltest "k8s.io/kubernetes/pkg/proxy/util/testing"
 	"k8s.io/kubernetes/pkg/util/async"
@@ -70,12 +69,12 @@ func (f *fakeIPGetter) BindedIPs() (sets.String, error) {
 
 // fakePortOpener implements portOpener.
 type fakePortOpener struct {
-	openPorts []*utilproxy.LocalPort
+	openPorts []*utilnet.LocalPort
 }
 
 // OpenLocalPort fakes out the listen() and bind() used by syncProxyRules
 // to lock a local port.
-func (f *fakePortOpener) OpenLocalPort(lp *utilproxy.LocalPort, isIPv6 bool) (utilproxy.Closeable, error) {
+func (f *fakePortOpener) OpenLocalPort(lp *utilnet.LocalPort) (utilnet.Closeable, error) {
 	f.openPorts = append(f.openPorts, lp)
 	return nil, nil
 }
@@ -151,8 +150,8 @@ func NewFakeProxier(ipt utiliptables.Interface, ipvs utilipvs.Interface, ipset u
 		strictARP:             false,
 		localDetector:         proxyutiliptables.NewNoOpLocalDetector(),
 		hostname:              testHostname,
-		portsMap:              make(map[utilproxy.LocalPort]utilproxy.Closeable),
-		portMapper:            &fakePortOpener{[]*utilproxy.LocalPort{}},
+		portsMap:              make(map[utilnet.LocalPort]utilnet.Closeable),
+		portMapper:            &fakePortOpener{[]*utilnet.LocalPort{}},
 		serviceHealthServer:   healthcheck.NewFakeServiceHealthServer(),
 		ipvsScheduler:         DefaultScheduler,
 		ipGetter:              &fakeIPGetter{nodeIPs: nodeIPs},
@@ -1915,6 +1914,75 @@ func TestOnlyLocalNodePorts(t *testing.T) {
 			JumpChain: "RETURN", MatchSet: kubeNodePortLocalSetTCP,
 		}, {
 			JumpChain: string(KubeMarkMasqChain), MatchSet: kubeNodePortSetTCP,
+		}},
+	}
+	checkIptables(t, ipt, epIpt)
+}
+
+func TestHealthCheckNodePort(t *testing.T) {
+	ipt, fp := buildFakeProxier()
+
+	svcIP := "10.20.30.41"
+	svcPort := 80
+	svcNodePort := 3000
+	svcPortName := proxy.ServicePortName{
+		NamespacedName: makeNSN("ns1", "svc1"),
+		Port:           "p80",
+	}
+
+	sampleSvc := makeTestService(svcPortName.Namespace, "", func(svc *v1.Service) {
+		svc.Spec.Type = "LoadBalancer"
+		svc.Spec.ClusterIP = svcIP
+		svc.Spec.Ports = []v1.ServicePort{{
+			Name:     svcPortName.Port,
+			Port:     int32(svcPort),
+			Protocol: v1.ProtocolTCP,
+			NodePort: int32(svcNodePort),
+		}}
+		svc.Spec.ExternalTrafficPolicy = v1.ServiceExternalTrafficPolicyTypeLocal
+	})
+
+	svc1, svc2, invalidSvc3 := *sampleSvc, *sampleSvc, *sampleSvc
+	svc1.Name, svc1.Spec.HealthCheckNodePort = "valid-svc1", 30000
+	svc2.Name, svc2.Spec.HealthCheckNodePort = "valid-svc2", 30001
+	// make svc3 invalid by setting external traffic policy to cluster
+	invalidSvc3.Spec.ExternalTrafficPolicy = v1.ServiceExternalTrafficPolicyTypeCluster
+	invalidSvc3.Name, invalidSvc3.Spec.HealthCheckNodePort = "invalid-svc3", 30002
+
+	makeServiceMap(fp,
+		&svc1,
+		&svc2,
+		&invalidSvc3,
+	)
+
+	itf := net.Interface{Index: 0, MTU: 0, Name: "eth0", HardwareAddr: nil, Flags: 0}
+	addrs := []net.Addr{proxyutiltest.AddrStruct{Val: "100.101.102.103/24"}}
+	itf1 := net.Interface{Index: 1, MTU: 0, Name: "eth1", HardwareAddr: nil, Flags: 0}
+	addrs1 := []net.Addr{proxyutiltest.AddrStruct{Val: "2001:db8::0/64"}}
+	fp.networkInterfacer.(*proxyutiltest.FakeNetwork).AddInterfaceAddr(&itf, addrs)
+	fp.networkInterfacer.(*proxyutiltest.FakeNetwork).AddInterfaceAddr(&itf1, addrs1)
+	fp.nodePortAddresses = []string{"100.101.102.0/24", "2001:db8::0/64"}
+
+	fp.syncProxyRules()
+
+	// check ipSet rules
+	makeTCPEntry := func(port int) *utilipset.Entry {
+		return &utilipset.Entry{
+			Port:     port,
+			Protocol: strings.ToLower(string(v1.ProtocolTCP)),
+			SetType:  utilipset.BitmapPort,
+		}
+	}
+	epIPSet := netlinktest.ExpectedIPSet{
+		// healthcheck node port set should only contain valid HC node ports
+		kubeHealthCheckNodePortSet: {makeTCPEntry(30000), makeTCPEntry(30001)},
+	}
+	checkIPSet(t, fp, epIPSet)
+
+	// Check iptables chain and rules
+	epIpt := netlinktest.ExpectedIptablesChain{
+		string(KubeNodePortChain): {{
+			JumpChain: "ACCEPT", MatchSet: kubeHealthCheckNodePortSet,
 		}},
 	}
 	checkIptables(t, ipt, epIpt)
@@ -4295,6 +4363,61 @@ func TestEndpointSliceE2E(t *testing.T) {
 	assert.Nil(t, rsErr2, "Expected no error getting real servers")
 	assert.Len(t, realServers2, 0, "Expected 0 real servers")
 }
+
+func TestHealthCheckNodePortE2E(t *testing.T) {
+	ipt := iptablestest.NewFake()
+	ipvs := ipvstest.NewFake()
+	ipset := ipsettest.NewFake(testIPSetVersion)
+	fp := NewFakeProxier(ipt, ipvs, ipset, nil, nil, true, v1.IPv4Protocol)
+	fp.servicesSynced = true
+	fp.endpointsSynced = true
+	fp.endpointSlicesSynced = true
+
+	// Add initial service
+	serviceName := "svc1"
+	namespaceName := "ns1"
+
+	svc := v1.Service{
+		ObjectMeta: metav1.ObjectMeta{Name: serviceName, Namespace: namespaceName},
+		Spec: v1.ServiceSpec{
+			ClusterIP:             "172.20.1.1",
+			Selector:              map[string]string{"foo": "bar"},
+			Ports:                 []v1.ServicePort{{Name: "", TargetPort: intstr.FromInt(80), Protocol: v1.ProtocolTCP}},
+			Type:                  "LoadBalancer",
+			HealthCheckNodePort:   30000,
+			ExternalTrafficPolicy: v1.ServiceExternalTrafficPolicyTypeLocal,
+		},
+	}
+	fp.OnServiceAdd(&svc)
+	fp.syncProxyRules()
+
+	// Ensure that Proxier updates ipvs appropriately after service's being created
+	assert.NotNil(t, fp.ipsetList["KUBE-HEALTH-CHECK-NODE-PORT"])
+	activeEntries1 := fp.ipsetList["KUBE-HEALTH-CHECK-NODE-PORT"].activeEntries
+	assert.Equal(t, 1, activeEntries1.Len(), "Expected 1 active entry in KUBE-HEALTH-CHECK-NODE-PORT")
+	assert.Equal(t, true, activeEntries1.Has("30000"), "Expected activeEntries to reference hc node port in spec")
+
+	// Update health check node port in the spec
+	newSvc := svc
+	newSvc.Spec.HealthCheckNodePort = 30001
+	fp.OnServiceUpdate(&svc, &newSvc)
+	fp.syncProxyRules()
+
+	// Ensure that Proxier updates ipvs appropriately after service's being updated
+	assert.NotNil(t, fp.ipsetList["KUBE-HEALTH-CHECK-NODE-PORT"])
+	activeEntries2 := fp.ipsetList["KUBE-HEALTH-CHECK-NODE-PORT"].activeEntries
+	assert.Equal(t, 1, activeEntries2.Len(), "Expected 1 active entry in KUBE-HEALTH-CHECK-NODE-PORT")
+	assert.Equal(t, true, activeEntries2.Has("30001"), "Expected activeEntries to reference updated hc node port in spec")
+
+	fp.OnServiceDelete(&svc)
+	fp.syncProxyRules()
+
+	// Ensure that Proxier updates ipvs appropriately after EndpointSlice delete
+	assert.NotNil(t, fp.ipsetList["KUBE-HEALTH-CHECK-NODE-PORT"])
+	activeEntries3 := fp.ipsetList["KUBE-HEALTH-CHECK-NODE-PORT"].activeEntries
+	assert.Equal(t, 0, activeEntries3.Len(), "Expected 0 active entries in KUBE-HEALTH-CHECK-NODE-PORT")
+}
+
 func TestFilterCIDRs(t *testing.T) {
 	var cidrList []string
 	var cidrs []string
@@ -4339,6 +4462,7 @@ func TestCreateAndLinkKubeChain(t *testing.T) {
 :KUBE-MARK-MASQ - [0:0]
 `
 	expectedFilterChains := `:KUBE-FORWARD - [0:0]
+:KUBE-NODE-PORT - [0:0]
 `
 	assert.Equal(t, expectedNATChains, fp.natChains.String())
 	assert.Equal(t, expectedFilterChains, fp.filterChains.String())

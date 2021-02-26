@@ -10,6 +10,7 @@ go_test(
     size = "large",
     srcs = [
         "apiserver_test.go",
+        "export_test.go",
         "main_test.go",
         "max_json_patch_operations_test.go",
         "max_request_body_bytes_test.go",
@@ -33,7 +34,6 @@ go_test(
         "//pkg/printers/internalversion:go_default_library",
         "//staging/src/k8s.io/api/apiserverinternal/v1alpha1:go_default_library",
         "//staging/src/k8s.io/api/apps/v1:go_default_library",
-        "//staging/src/k8s.io/api/batch/v2alpha1:go_default_library",
         "//staging/src/k8s.io/api/core/v1:go_default_library",
         "//staging/src/k8s.io/api/discovery/v1alpha1:go_default_library",
         "//staging/src/k8s.io/api/discovery/v1beta1:go_default_library",

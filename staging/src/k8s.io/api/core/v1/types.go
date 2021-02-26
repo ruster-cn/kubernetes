@@ -4265,6 +4265,7 @@ type ServicePort struct {
 
 	// The IP protocol for this port. Supports "TCP", "UDP", and "SCTP".
 	// Default is TCP.
+	// +default="TCP"
 	// +optional
 	Protocol Protocol `json:"protocol,omitempty" protobuf:"bytes,2,opt,name=protocol,casttype=Protocol"`
 
@@ -5753,9 +5754,9 @@ type Secret struct {
 	Data map[string][]byte `json:"data,omitempty" protobuf:"bytes,2,rep,name=data"`
 
 	// stringData allows specifying non-binary secret data in string form.
-	// It is provided as a write-only convenience method.
+	// It is provided as a write-only input field for convenience.
 	// All keys and values are merged into the data field on write, overwriting any existing values.
-	// It is never output when reading from the API.
+	// The stringData field is never output when reading from the API.
 	// +k8s:conversion-gen=false
 	// +optional
 	StringData map[string]string `json:"stringData,omitempty" protobuf:"bytes,4,rep,name=stringData"`
@@ -6167,7 +6168,7 @@ type RangeAllocation struct {
 }
 
 const (
-	// "default-scheduler" is the name of default scheduler.
+	// DefaultSchedulerName defines the name of default scheduler.
 	DefaultSchedulerName = "default-scheduler"
 
 	// RequiredDuringScheduling affinity is not symmetric, but there is an implicit PreferredDuringScheduling affinity rule

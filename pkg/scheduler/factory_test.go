@@ -35,7 +35,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/events"
 	extenderv1 "k8s.io/kube-scheduler/extender/v1"
-	apicore "k8s.io/kubernetes/pkg/apis/core"
 	schedulerapi "k8s.io/kubernetes/pkg/scheduler/apis/config"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	frameworkplugins "k8s.io/kubernetes/pkg/scheduler/framework/plugins"
@@ -151,17 +150,18 @@ func TestCreateFromConfig(t *testing.T) {
 				},
 			},
 			wantPlugins: &schedulerapi.Plugins{
-				QueueSort: &schedulerapi.PluginSet{Enabled: []schedulerapi.Plugin{{Name: "PrioritySort"}}},
-				PreFilter: &schedulerapi.PluginSet{
+				QueueSort: schedulerapi.PluginSet{Enabled: []schedulerapi.Plugin{{Name: "PrioritySort"}}},
+				PreFilter: schedulerapi.PluginSet{
 					Enabled: []schedulerapi.Plugin{
 						{Name: "NodeResourcesFit"},
 						{Name: "NodePorts"},
+						{Name: "NodeAffinity"},
 						{Name: "VolumeBinding"},
 						{Name: "PodTopologySpread"},
 						{Name: "InterPodAffinity"},
 					},
 				},
-				Filter: &schedulerapi.PluginSet{
+				Filter: schedulerapi.PluginSet{
 					Enabled: []schedulerapi.Plugin{
 						{Name: "NodeUnschedulable"},
 						{Name: "NodeResourcesFit"},
@@ -180,8 +180,8 @@ func TestCreateFromConfig(t *testing.T) {
 						{Name: "InterPodAffinity"},
 					},
 				},
-				PostFilter: &schedulerapi.PluginSet{Enabled: []schedulerapi.Plugin{{Name: "DefaultPreemption"}}},
-				PreScore: &schedulerapi.PluginSet{
+				PostFilter: schedulerapi.PluginSet{Enabled: []schedulerapi.Plugin{{Name: "DefaultPreemption"}}},
+				PreScore: schedulerapi.PluginSet{
 					Enabled: []schedulerapi.Plugin{
 						{Name: "PodTopologySpread"},
 						{Name: "InterPodAffinity"},
@@ -189,7 +189,7 @@ func TestCreateFromConfig(t *testing.T) {
 						{Name: "TaintToleration"},
 					},
 				},
-				Score: &schedulerapi.PluginSet{
+				Score: schedulerapi.PluginSet{
 					Enabled: []schedulerapi.Plugin{
 						{Name: "NodeResourcesBalancedAllocation", Weight: 1},
 						{Name: "PodTopologySpread", Weight: 2},
@@ -201,11 +201,9 @@ func TestCreateFromConfig(t *testing.T) {
 						{Name: "TaintToleration", Weight: 1},
 					},
 				},
-				Reserve:  &schedulerapi.PluginSet{Enabled: []schedulerapi.Plugin{{Name: "VolumeBinding"}}},
-				Permit:   &schedulerapi.PluginSet{},
-				PreBind:  &schedulerapi.PluginSet{Enabled: []schedulerapi.Plugin{{Name: "VolumeBinding"}}},
-				Bind:     &schedulerapi.PluginSet{Enabled: []schedulerapi.Plugin{{Name: "DefaultBinder"}}},
-				PostBind: &schedulerapi.PluginSet{},
+				Reserve: schedulerapi.PluginSet{Enabled: []schedulerapi.Plugin{{Name: "VolumeBinding"}}},
+				PreBind: schedulerapi.PluginSet{Enabled: []schedulerapi.Plugin{{Name: "VolumeBinding"}}},
+				Bind:    schedulerapi.PluginSet{Enabled: []schedulerapi.Plugin{{Name: "DefaultBinder"}}},
 			},
 		},
 		{
@@ -286,9 +284,9 @@ func TestCreateFromConfig(t *testing.T) {
 				},
 			},
 			wantPlugins: &schedulerapi.Plugins{
-				QueueSort: &schedulerapi.PluginSet{Enabled: []schedulerapi.Plugin{{Name: "PrioritySort"}}},
-				PreFilter: &schedulerapi.PluginSet{Enabled: []schedulerapi.Plugin{{Name: "ServiceAffinity"}}},
-				Filter: &schedulerapi.PluginSet{
+				QueueSort: schedulerapi.PluginSet{Enabled: []schedulerapi.Plugin{{Name: "PrioritySort"}}},
+				PreFilter: schedulerapi.PluginSet{Enabled: []schedulerapi.Plugin{{Name: "ServiceAffinity"}}},
+				Filter: schedulerapi.PluginSet{
 					Enabled: []schedulerapi.Plugin{
 						{Name: "NodeUnschedulable"},
 						{Name: "TaintToleration"},
@@ -296,14 +294,14 @@ func TestCreateFromConfig(t *testing.T) {
 						{Name: "ServiceAffinity"},
 					},
 				},
-				PostFilter: &schedulerapi.PluginSet{Enabled: []schedulerapi.Plugin{{Name: "DefaultPreemption"}}},
-				PreScore: &schedulerapi.PluginSet{
+				PostFilter: schedulerapi.PluginSet{Enabled: []schedulerapi.Plugin{{Name: "DefaultPreemption"}}},
+				PreScore: schedulerapi.PluginSet{
 					Enabled: []schedulerapi.Plugin{
 						{Name: "InterPodAffinity"},
 						{Name: "NodeAffinity"},
 					},
 				},
-				Score: &schedulerapi.PluginSet{
+				Score: schedulerapi.PluginSet{
 					Enabled: []schedulerapi.Plugin{
 						{Name: "InterPodAffinity", Weight: 1},
 						{Name: "NodeAffinity", Weight: 2},
@@ -312,11 +310,7 @@ func TestCreateFromConfig(t *testing.T) {
 						{Name: "ServiceAffinity", Weight: 6},
 					},
 				},
-				Reserve:  &schedulerapi.PluginSet{},
-				Permit:   &schedulerapi.PluginSet{},
-				PreBind:  &schedulerapi.PluginSet{},
-				Bind:     &schedulerapi.PluginSet{Enabled: []schedulerapi.Plugin{{Name: "DefaultBinder"}}},
-				PostBind: &schedulerapi.PluginSet{},
+				Bind: schedulerapi.PluginSet{Enabled: []schedulerapi.Plugin{{Name: "DefaultBinder"}}},
 			},
 		},
 		{
@@ -353,12 +347,12 @@ func TestCreateFromConfig(t *testing.T) {
 				},
 			},
 			wantPlugins: &schedulerapi.Plugins{
-				QueueSort: &schedulerapi.PluginSet{Enabled: []schedulerapi.Plugin{{Name: "PrioritySort"}}},
-				PreFilter: &schedulerapi.PluginSet{Enabled: []schedulerapi.Plugin{
+				QueueSort: schedulerapi.PluginSet{Enabled: []schedulerapi.Plugin{{Name: "PrioritySort"}}},
+				PreFilter: schedulerapi.PluginSet{Enabled: []schedulerapi.Plugin{
 					{Name: "NodePorts"},
 					{Name: "NodeResourcesFit"},
 				}},
-				Filter: &schedulerapi.PluginSet{
+				Filter: schedulerapi.PluginSet{
 					Enabled: []schedulerapi.Plugin{
 						{Name: "NodeUnschedulable"},
 						{Name: "NodePorts"},
@@ -366,22 +360,18 @@ func TestCreateFromConfig(t *testing.T) {
 						{Name: "TaintToleration"},
 					},
 				},
-				PostFilter: &schedulerapi.PluginSet{Enabled: []schedulerapi.Plugin{{Name: "DefaultPreemption"}}},
-				PreScore: &schedulerapi.PluginSet{
+				PostFilter: schedulerapi.PluginSet{Enabled: []schedulerapi.Plugin{{Name: "DefaultPreemption"}}},
+				PreScore: schedulerapi.PluginSet{
 					Enabled: []schedulerapi.Plugin{
 						{Name: "InterPodAffinity"},
 					},
 				},
-				Score: &schedulerapi.PluginSet{
+				Score: schedulerapi.PluginSet{
 					Enabled: []schedulerapi.Plugin{
 						{Name: "InterPodAffinity", Weight: 1},
 					},
 				},
-				Reserve:  &schedulerapi.PluginSet{},
-				Permit:   &schedulerapi.PluginSet{},
-				PreBind:  &schedulerapi.PluginSet{},
-				Bind:     &schedulerapi.PluginSet{Enabled: []schedulerapi.Plugin{{Name: "DefaultBinder"}}},
-				PostBind: &schedulerapi.PluginSet{},
+				Bind: schedulerapi.PluginSet{Enabled: []schedulerapi.Plugin{{Name: "DefaultBinder"}}},
 			},
 		},
 	}
@@ -477,7 +467,7 @@ func TestDefaultErrorFunc(t *testing.T) {
 				queue.Delete(testPod)
 			}
 
-			testPodInfo := &framework.QueuedPodInfo{Pod: testPod}
+			testPodInfo := &framework.QueuedPodInfo{PodInfo: framework.NewPodInfo(testPod)}
 			errFunc := MakeDefaultErrorFunc(client, podInformer.Lister(), queue, schedulerCache)
 			errFunc(testPodInfo, tt.injectErr)
 
@@ -514,13 +504,13 @@ func TestDefaultErrorFunc_NodeNotFound(t *testing.T) {
 			name:             "node is deleted during a scheduling cycle",
 			nodes:            []v1.Node{*nodeFoo, *nodeBar},
 			nodeNameToDelete: "foo",
-			injectErr:        apierrors.NewNotFound(apicore.Resource("node"), nodeFoo.Name),
+			injectErr:        apierrors.NewNotFound(v1.Resource("node"), nodeFoo.Name),
 			expectNodeNames:  sets.NewString("bar"),
 		},
 		{
 			name:            "node is not deleted but NodeNotFound is received incorrectly",
 			nodes:           []v1.Node{*nodeFoo, *nodeBar},
-			injectErr:       apierrors.NewNotFound(apicore.Resource("node"), nodeFoo.Name),
+			injectErr:       apierrors.NewNotFound(v1.Resource("node"), nodeFoo.Name),
 			expectNodeNames: sets.NewString("foo", "bar"),
 		},
 	}
@@ -548,7 +538,7 @@ func TestDefaultErrorFunc_NodeNotFound(t *testing.T) {
 				}
 			}
 
-			testPodInfo := &framework.QueuedPodInfo{Pod: testPod}
+			testPodInfo := &framework.QueuedPodInfo{PodInfo: framework.NewPodInfo(testPod)}
 			errFunc := MakeDefaultErrorFunc(client, podInformer.Lister(), queue, schedulerCache)
 			errFunc(testPodInfo, tt.injectErr)
 
@@ -583,7 +573,7 @@ func TestDefaultErrorFunc_PodAlreadyBound(t *testing.T) {
 	// Add node to schedulerCache no matter it's deleted in API server or not.
 	schedulerCache.AddNode(&nodeFoo)
 
-	testPodInfo := &framework.QueuedPodInfo{Pod: testPod}
+	testPodInfo := &framework.QueuedPodInfo{PodInfo: framework.NewPodInfo(testPod)}
 	errFunc := MakeDefaultErrorFunc(client, podInformer.Lister(), queue, schedulerCache)
 	errFunc(testPodInfo, fmt.Errorf("binding rejected: timeout"))
 
@@ -674,8 +664,8 @@ func (f *fakeExtender) SupportsPreemption() bool {
 	return false
 }
 
-func (f *fakeExtender) Filter(pod *v1.Pod, nodes []*v1.Node) (filteredNodes []*v1.Node, failedNodesMap extenderv1.FailedNodesMap, err error) {
-	return nil, nil, nil
+func (f *fakeExtender) Filter(pod *v1.Pod, nodes []*v1.Node) ([]*v1.Node, extenderv1.FailedNodesMap, extenderv1.FailedNodesMap, error) {
+	return nil, nil, nil, nil
 }
 
 func (f *fakeExtender) Prioritize(

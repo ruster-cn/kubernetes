@@ -1,7 +1,24 @@
 dependencies:
+  # zeitgeist (https://github.com/kubernetes-sigs/zeitgeist) was inspired by
+  # (and now replaces) the cmd/verifydependencies tool to verify external
+  # dependencies across the repo.
+  #
+  # The zeitgeist dependencies.yaml file format is intended to be
+  # backwards-compatible with the original tooling.
+  #
+  # In instances where the file format may change across versions, this meta
+  # dependency check exists to ensure we're pinned to a known good version.
+  #
+  # ref: https://github.com/kubernetes/kubernetes/pull/98845
+  - name: "zeitgeist"
+    version: "v0.1.1-0.20210222132743-e06e27751b7f"
+    refPaths:
+    - path: hack/tools/go.mod
+      match: sigs.k8s.io/zeitgeist\ v(?P<major>0|[1-9]\d*)\.(?P<minor>0|[1-9]\d*)\.(?P<patch>0|[1-9]\d*)(?:-(?P<prerelease>(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+(?P<buildmetadata>[0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?
+
   # agnhost: bump this one first
   - name: "agnhost"
-    version: "2.26"
+    version: "2.28"
     refPaths:
     - path: test/images/agnhost/VERSION
       match: \d.\d
@@ -10,7 +27,7 @@ dependencies:
 
   # then after merge and successful postsubmit image push / promotion, bump this
   - name: "agnhost: dependents"
-    version: "2.26"
+    version: "2.28"
     refPaths:
     - path: test/utils/image/manifest.go
       match: configs\[Agnhost\] = Config{promoterE2eRegistry, "agnhost", "\d+\.\d+"}
@@ -99,7 +116,7 @@ dependencies:
 
   # Golang
   - name: "golang: upstream version"
-    version: 1.15.5
+    version: 1.15.8
     refPaths:
     - path: build/build-image/cross/VERSION
     - path: build/root/WORKSPACE
@@ -112,7 +129,7 @@ dependencies:
       match: 'default-go-version\: \d+.\d+(alpha|beta|rc)?\.?(\d+)?'
 
   - name: "k8s.gcr.io/kube-cross: dependents"
-    version: v1.15.5-1
+    version: v1.15.8-1
     refPaths:
     - path: build/build-image/cross/VERSION
     - path: test/images/sample-apiserver/Makefile
@@ -120,7 +137,7 @@ dependencies:
 
   # Base images
   - name: "k8s.gcr.io/debian-base: dependents"
-    version: buster-v1.2.0
+    version: buster-v1.4.0
     refPaths:
     - path: build/workspace.bzl
       match: tag =
@@ -136,20 +153,20 @@ dependencies:
       match: BASEIMAGE\?\=k8s\.gcr\.io\/build-image\/debian-base-s390x:[a-zA-Z]+\-v((([0-9]+)\.([0-9]+)\.([0-9]+)(?:-([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?)(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?)
 
   - name: "k8s.gcr.io/debian-iptables: dependents"
-    version: buster-v1.3.0
+    version: buster-v1.5.0
     refPaths:
     - path: build/common.sh
-      match: debian_iptables_version=
+      match: __default_debian_iptables_version=
     - path: build/workspace.bzl
       match: tag =
     - path: test/utils/image/manifest.go
       match: configs\[DebianIptables\] = Config{buildImageRegistry, "debian-iptables", "[a-zA-Z]+\-v((([0-9]+)\.([0-9]+)\.([0-9]+)(?:-([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?)(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?)"}
 
   - name: "k8s.gcr.io/go-runner: dependents"
-    version: buster-v2.2.2
+    version: buster-v2.3.1
     refPaths:
     - path: build/common.sh
-      match: go_runner_version=
+      match: __default_go_runner_version=
     - path: build/workspace.bzl
       match: tag =
 
@@ -160,9 +177,9 @@ dependencies:
       match: TAG =
 
   - name: "k8s.gcr.io/pause: dependents"
-    version: 3.2
+    version: 3.4.1
     refPaths:
-    - path: cmd/kubeadm/app/constants/constants_unix.go
+    - path: cmd/kubeadm/app/constants/constants.go
       match: PauseVersion\s+=
     - path: cmd/kubeadm/app/util/template_test.go
       match: validTmpl\s+=
@@ -209,4 +226,18 @@ dependencies:
     - path: test/utils/runners.go
       match: k8s.gcr.io\/pause:\d+\.\d+
     - path: test/utils/image/manifest.go
-      match: configs\[Pause\] = Config{gcRegistry, "pause", "\d+\.\d+"}
+      match: configs\[Pause\] = Config{gcRegistry, "pause", "\d+\.\d+.\d+"}
+
+  # metadata-concealment: bump this one first
+  - name: "metadata-concealment"
+    version: "1.6"
+    refPaths:
+    - path: test/images/metadata-concealment/VERSION
+      match: \d.\d
+
+  # then after merge and successful postsubmit image push / promotion, bump this
+  - name: "metadata-concealment: dependents"
+    version: "1.6"
+    refPaths:
+    - path: test/utils/image/manifest.go
+      match: configs\[CheckMetadataConcealment\] = Config{promoterE2eRegistry, "metadata-concealment", "\d+\.\d+"}

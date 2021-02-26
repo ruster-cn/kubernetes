@@ -357,7 +357,7 @@ func TestSchedulerScheduleOne(t *testing.T) {
 					gotError = err
 				},
 				NextPod: func() *framework.QueuedPodInfo {
-					return &framework.QueuedPodInfo{Pod: item.sendPod}
+					return &framework.QueuedPodInfo{PodInfo: framework.NewPodInfo(item.sendPod)}
 				},
 				Profiles: profile.Map{
 					testSchedulerName: fwk,
@@ -461,7 +461,7 @@ func TestSchedulerMultipleProfilesScheduling(t *testing.T) {
 		WithProfiles(
 			schedulerapi.KubeSchedulerProfile{SchedulerName: "match-machine2",
 				Plugins: &schedulerapi.Plugins{
-					Filter: &schedulerapi.PluginSet{
+					Filter: schedulerapi.PluginSet{
 						Enabled:  []schedulerapi.Plugin{{Name: "FakeNodeSelector"}},
 						Disabled: []schedulerapi.Plugin{{Name: "*"}},
 					}},
@@ -474,7 +474,7 @@ func TestSchedulerMultipleProfilesScheduling(t *testing.T) {
 			schedulerapi.KubeSchedulerProfile{
 				SchedulerName: "match-machine3",
 				Plugins: &schedulerapi.Plugins{
-					Filter: &schedulerapi.PluginSet{
+					Filter: schedulerapi.PluginSet{
 						Enabled:  []schedulerapi.Plugin{{Name: "FakeNodeSelector"}},
 						Disabled: []schedulerapi.Plugin{{Name: "*"}},
 					}},
@@ -636,11 +636,11 @@ func TestSchedulerNoPhantomPodAfterDelete(t *testing.T) {
 		expectErr := &framework.FitError{
 			Pod:         secondPod,
 			NumAllNodes: 1,
-			FilteredNodesStatuses: framework.NodeToStatusMap{
-				node.Name: framework.NewStatus(
-					framework.Unschedulable,
-					nodeports.ErrReason,
-				),
+			Diagnosis: framework.Diagnosis{
+				NodeToStatusMap: framework.NodeToStatusMap{
+					node.Name: framework.NewStatus(framework.Unschedulable, nodeports.ErrReason).WithFailedPlugin(nodeports.Name),
+				},
+				UnschedulablePlugins: sets.NewString(nodeports.Name),
 			},
 		}
 		if !reflect.DeepEqual(expectErr, err) {
@@ -761,7 +761,7 @@ func TestSchedulerFailedSchedulingReasons(t *testing.T) {
 			framework.Unschedulable,
 			fmt.Sprintf("Insufficient %v", v1.ResourceCPU),
 			fmt.Sprintf("Insufficient %v", v1.ResourceMemory),
-		)
+		).WithFailedPlugin(noderesources.FitName)
 	}
 	fns := []st.RegisterPluginFunc{
 		st.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
@@ -778,9 +778,12 @@ func TestSchedulerFailedSchedulingReasons(t *testing.T) {
 	select {
 	case err := <-errChan:
 		expectErr := &framework.FitError{
-			Pod:                   podWithTooBigResourceRequests,
-			NumAllNodes:           len(nodes),
-			FilteredNodesStatuses: failedNodeStatues,
+			Pod:         podWithTooBigResourceRequests,
+			NumAllNodes: len(nodes),
+			Diagnosis: framework.Diagnosis{
+				NodeToStatusMap:      failedNodeStatues,
+				UnschedulablePlugins: sets.NewString(noderesources.FitName),
+			},
 		}
 		if len(fmt.Sprint(expectErr)) > 150 {
 			t.Errorf("message is too spammy ! %v ", len(fmt.Sprint(expectErr)))
@@ -835,7 +838,7 @@ func setupTestScheduler(queuedPodStore *clientcache.FIFO, scache internalcache.C
 		SchedulerCache: scache,
 		Algorithm:      algo,
 		NextPod: func() *framework.QueuedPodInfo {
-			return &framework.QueuedPodInfo{Pod: clientcache.Pop(queuedPodStore).(*v1.Pod)}
+			return &framework.QueuedPodInfo{PodInfo: framework.NewPodInfo(clientcache.Pop(queuedPodStore).(*v1.Pod))}
 		},
 		Error: func(p *framework.QueuedPodInfo, err error) {
 			errChan <- err
@@ -954,7 +957,7 @@ func TestSchedulerWithVolumeBinding(t *testing.T) {
 				FindErr: findErr,
 			},
 			eventReason: "FailedScheduling",
-			expectError: fmt.Errorf("running %q filter plugin for pod %q: %v", volumebinding.Name, "foo", findErr),
+			expectError: fmt.Errorf("running %q filter plugin: %v", volumebinding.Name, findErr),
 		},
 		{
 			name: "assume error",

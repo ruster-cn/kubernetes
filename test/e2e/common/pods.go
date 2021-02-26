@@ -19,6 +19,7 @@ package common
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"runtime/debug"
@@ -28,7 +29,6 @@ import (
 
 	"golang.org/x/net/websocket"
 
-	"encoding/json"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -59,7 +59,7 @@ const (
 	maxBackOffTolerance  = time.Duration(1.3 * float64(kubelet.MaxContainerBackOff))
 	podRetryPeriod       = 1 * time.Second
 	podRetryTimeout      = 1 * time.Minute
-	podReadyTimeout      = 1 * time.Minute
+	podReadyTimeout      = 2 * time.Minute
 )
 
 // testHostIP tests that a pod gets a host IP
@@ -813,7 +813,8 @@ var _ = framework.KubeDescribe("Pods", func() {
 		}
 
 		ginkgo.By("submitting the pod to kubernetes")
-		podClient.CreateSync(pod)
+		f.PodClient().Create(pod)
+		e2epod.WaitForPodNameRunningInNamespace(f.ClientSet, pod.Name, f.Namespace.Name)
 		framework.ExpectEqual(podClient.PodIsReady(podName), false, "Expect pod's Ready condition to be false initially.")
 
 		ginkgo.By(fmt.Sprintf("patching pod status with condition %q to true", readinessGate1))
