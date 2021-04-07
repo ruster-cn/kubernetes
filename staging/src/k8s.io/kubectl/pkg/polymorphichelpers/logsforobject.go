@@ -30,6 +30,7 @@ import (
 	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/reference"
+	"k8s.io/kubectl/pkg/cmd/util/podcmd"
 	"k8s.io/kubectl/pkg/scheme"
 	"k8s.io/kubectl/pkg/util/podutils"
 )
@@ -73,30 +74,35 @@ func logsForObjectWithClient(clientset corev1client.CoreV1Interface, object, opt
 		return ret, nil
 
 	case *corev1.Pod:
-		// in case the "kubectl.kubernetes.io/default-container" annotation is present, we preset the opts.Containers to default to selected
-		// container. This gives users ability to preselect the most interesting container in pod.
-		if annotations := t.GetAnnotations(); annotations != nil && len(opts.Container) == 0 {
-			var containerName string
-			if len(annotations[defaultLogsContainerAnnotationName]) > 0 {
-				containerName = annotations[defaultLogsContainerAnnotationName]
-				fmt.Fprintf(os.Stderr, "Using deprecated annotation `kubectl.kubernetes.io/default-logs-container` in pod/%v. Please use `kubectl.kubernetes.io/default-container` instead\n", t.Name)
-			} else if len(annotations[podutils.DefaultContainerAnnotationName]) > 0 {
-				containerName = annotations[podutils.DefaultContainerAnnotationName]
-			}
-			if len(containerName) > 0 {
-				if exists, _ := podutils.FindContainerByName(t, containerName); exists != nil {
-					opts.Container = containerName
-				} else {
-					fmt.Fprintf(os.Stderr, "Default container name %q not found in a pod\n", containerName)
-				}
-			}
-		}
 		// if allContainers is true, then we're going to locate all containers and then iterate through them. At that point, "allContainers" is false
 		if !allContainers {
+			// in case the "kubectl.kubernetes.io/default-container" annotation is present, we preset the opts.Containers to default to selected
+			// container. This gives users ability to preselect the most interesting container in pod.
+			if annotations := t.GetAnnotations(); annotations != nil && len(opts.Container) == 0 {
+				var containerName string
+				if len(annotations[podcmd.DefaultContainerAnnotationName]) > 0 {
+					containerName = annotations[podcmd.DefaultContainerAnnotationName]
+				} else if len(annotations[defaultLogsContainerAnnotationName]) > 0 {
+					// Only log deprecation if we have only the old annotation. This allows users to
+					// set both to support multiple versions of kubectl; if they are setting both
+					// they must already know it is deprecated, so we don't need to add noisy
+					// warnings.
+					containerName = annotations[defaultLogsContainerAnnotationName]
+					fmt.Fprintf(os.Stderr, "Using deprecated annotation `kubectl.kubernetes.io/default-logs-container` in pod/%v. Please use `kubectl.kubernetes.io/default-container` instead\n", t.Name)
+				}
+				if len(containerName) > 0 {
+					if exists, _ := podcmd.FindContainerByName(t, containerName); exists != nil {
+						opts.Container = containerName
+					} else {
+						fmt.Fprintf(os.Stderr, "Default container name %q not found in a pod\n", containerName)
+					}
+				}
+			}
+
 			var containerName string
 			if opts == nil || len(opts.Container) == 0 {
 				// We don't know container name. In this case we expect only one container to be present in the pod (ignoring InitContainers).
-				// If there is more than one container we should return an error showing all container names.
+				// If there is more than one container, we should return an error showing all container names.
 				if len(t.Spec.Containers) != 1 {
 					containerNames := getContainerNames(t.Spec.Containers)
 					initContainerNames := getContainerNames(t.Spec.InitContainers)
@@ -116,7 +122,7 @@ func logsForObjectWithClient(clientset corev1client.CoreV1Interface, object, opt
 				containerName = opts.Container
 			}
 
-			container, fieldPath := podutils.FindContainerByName(t, containerName)
+			container, fieldPath := podcmd.FindContainerByName(t, containerName)
 			if container == nil {
 				return nil, fmt.Errorf("container %s is not valid for pod %s", opts.Container, t.Name)
 			}
